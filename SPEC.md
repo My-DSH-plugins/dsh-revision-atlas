@@ -8,8 +8,9 @@
 A **Revision Atlas** turns a course's markdown into a navigable, offline-capable
 revision surface: a course index of modules, one mind map per module (faithful
 to the source structure), and — at every terminal branch — a compacted leaf
-(recall block + mermaid + sketch + paged notebook + self-test prompt + source
-audit), with every node linking back to its source.
+(recall block + one diagram — hand-drawn by default, mermaid where exactness
+matters — + paged notebook + self-test prompt + source audit), with every node
+linking back to its source.
 
 **Acceptance test.** The same generic skill, with no per-course tuning, produces
 closure-passing, verification-passing atlases for two different module species:
@@ -37,7 +38,7 @@ Both open offline on a phone and look portfolio-ready.
 course atlas
 ├── course index map   (title = course name; nodes = modules)
 │     └── module map   (faithful to source; nodes = H2/H3/… and typed sidecar edges)
-│           └── leaf   (recall + mermaid + sketch + notebook + self-test + source)
+│           └── leaf   (recall + diagram + notebook + self-test + source)
 ```
 
 The **map** is the index into memory; the **leaf** is the memory itself; the
@@ -58,39 +59,36 @@ modules:
     map: "mindmaps/05-data-engineering-2/index.html"
 ```
 
-### 4.2 Module spec — `mindmaps/<module>/spec.yml`
+### 4.2 Module plan — `mindmaps/<module>/plan.md` (human source)
 
-```yaml
-module: 02-model-failure-science
-nodes:
-  - id: m2
-    kind: module
-    title: "Model Failure Science"
-    sources: [{ file: "README.md", anchor: "#m2-model-failure-science" }]
-  - id: m2-failure-classes
-    kind: section
-    title: "The failure classes"
-    sources: [{ file: "README.md", anchor: "#the-failure-classes" }]
-    children: [m2-c1, m2-c2]           # nine classes, all in parallel
-  - id: m2-drift-vs-position          # debate pair -> one node, two branches
-    kind: debate-pair
-    question: "Are instruction drift and position bias one failure?"
-    branches:
-      for: { file: "04-instruction-drift-vs-05-position-bias-for.md" }
-      against: { file: "04-instruction-drift-vs-05-position-bias-against.md" }
-    decision: { file: "04-...-against.md", anchor: "#the-decision" }
-    evidence: [{ file: "README.md", line: 122 }]   # the link that proved the edge
-  - id: m2-task-state
-    kind: framework-matrix
-    children: [healthcare, finance, legal, sre, cross-domain]  # 5 domains
-    canonical: "task-state-across-domains.md"     # aggregator = canonical source
+The plan is **drafted by the agent, approved by the human** — a human may
+hand-edit it, but never writes it from scratch. Headings are the tree (breadth);
+the bullets under a leaf are its checklist (depth). Inline annotations carry the
+few fields a human *decides* (`· kind: …`, `· diagram: …`), which the agent
+proposes and the human approves or corrects; everything else — ids, `sources`,
+anchors, `evidence`, hashes, canonical-source dedupe — is computed and emitted
+into the derived `spec.yml`.
+
+```markdown
+# Plan — 02-model-failure-science · status: proposed
+
+## Coverage: 8 H2 · 10 H3 · 12 collapsibles · 0 unclassified
+
+## The failure classes
+### 1. Hallucination & confabulation · diagram: handdrawn
+- definition paragraph
+- <details>: each collapsible example, by name
+### Instruction drift vs. position bias · kind: debate-pair
+- for: 04-instruction-drift-vs-05-position-bias-for.md
+- against: 04-instruction-drift-vs-05-position-bias-against.md
+- decision: ## The decision
 ```
 
-Every node carries `sources[]` (file + anchor) and, for typed edges,
-`evidence` (the link line). `kind` is always a value from the relationship
-table (§6), never a free string.
+The derived `spec.yml` is the machine form of this same graph — `kind`, typed
+edges (`branches`, `canonical`), and per-node `sources`/`evidence`/`content_hash`
+attached — with the leaf shape shown in §4.3. Humans do not read or edit it.
 
-### 4.3 Leaf schema
+### 4.3 Derived spec — leaf shape (`spec.yml`, generated, not hand-edited)
 
 ```yaml
 leaf:
@@ -99,11 +97,13 @@ leaf:
   checklist:              # enumerated source items that MUST survive
     - "Definition paragraph"
     - "<details>: <name of collapsible example>"
-  prompt: "…"             # self-test question (authored, stored, reviewable)
+  prompt: "…"             # self-test question (agent-generated, stored, reviewable)
   recall: ["hook", "hook"]  # 3-5 bullets, <=60 words
   reveal: "…"             # answer/structure shown on reveal
-  mermaid: "m2-c1.mmd"    # extracted OR generated (see §8)
-  sketch: "m2-c1-sketch.svg"
+  diagram:                # ONE diagram slot; kind chosen by content (§8)
+    kind: handdrawn       # handdrawn | mermaid | none
+    art: "m2-c1.svg"      # the drawing (hand-drawn, or rendered mermaid)
+    src: null             # .mmd source, only when kind == mermaid
   notebook: "leaves/m2-c1/notebook.html"
   source: "…"             # collapsed audit bullets
   status: draft | needs-review | verified
@@ -129,15 +129,32 @@ leaf:
    link graph; every `.md` is `classified` / `ignored` / `needs-review`; an
    unaccounted file **fails the build**. `handwrittenNotes/`, `scratch/` and
    similar noise dirs are ignored by an explicit rule, not by default.
-2. **Spec as contract** (human-reviewed): the module `spec.yml` above; every
-   leaf carries a `checklist` derived from the real content. A leaf with no
-   verified checklist is `needs-review`.
+2. **Plan as contract** (human-approved, before generation): the module plan is
+   drafted by the agent as a **human-readable `plan.md`** — headings are the tree, bullets
+   are each leaf's checklist — and approved in a **plan stage** with two human
+   gates: (a) the **structure plan** (the full heading tree; coverage verified
+   against the README and every connected markdown), and (b) the **leaf plan**
+   (each leaf's `checklist`, its content captured to the fullest). A
+   deterministic script derives `spec.yml` (ids, `sources`, `evidence`, hashes —
+   nothing a human must write) from the approved `plan.md`. No artifact is
+   generated until the plan is frozen; a leaf without a verified checklist is
+   `needs-review`.
 3. **Checklist-fed generation**: the per-leaf prompt carries the exhaustiveness
    bar — "cover every checklist item, or mark it out-of-scope". The model never
    decides what content exists.
-4. **Verification** (deterministic parser): re-open each generated artifact,
-   assert every checklist item is present (by slug), report coverage %; below
-   threshold → `needs-review` + a red marker. Silent omission is impossible.
+4. **Verification** (two axes): (a) **coverage** — a deterministic parser
+   re-opens each generated artifact and asserts every checklist item is present
+   by slug; below threshold → `needs-review` + a red marker, so silent omission
+   is impossible. (b) **adherence** — an LLM critic (separate pass, fresh
+   context) re-reads each leaf against its checklist + source and flags *drift*
+   (content that names an item but misstates it), plus a deterministic grounding
+   check that each claim traces to a real source anchor; drift → `needs-review`.
+   Adherence reads the **text** artifact — the notebook is HTML and diagrams are
+   SVG with real `<text>` labels, never a raster — so the critic is an ordinary
+   text pass, not a VLM; any PNG export is display-only, never the verification
+   surface. Post-generation human review is exception-based — only `needs-review`
+   items (and, for v1, diagram exactness) — never a whole-map re-read; coverage
+   was already decided at the plan gates.
 
 ## 7. Extraction rules (script, no LLM)
 
@@ -153,18 +170,30 @@ leaf:
 
 ## 8. Leaf generation contract
 
-- **Budgets**: recall block 3–5 bullets ≤60 words; mermaid = structure /
-  sequence / decisions; sketch = intuition / mental model (no duplicates);
-  notebook pages by checklist size (§9).
-- **Mermaid**: extract the existing ` ```mermaid ` block when present; when
-  absent (Harness M2), generate one from the checklist. Storage: `.mmd` source
-  (diffable) rendered to SVG at build time.
-- **Sketch**: hand-drawn style, SVG, font subset embedded or text→paths so it
-  survives offline and re-theming.
-- **Self-test**: `prompt`/`reveal` authored at generation, stored in the spec so
+- **Budgets**: recall block 3–5 bullets ≤60 words; notebook pages by checklist
+  size (§9); exactly **one diagram slot per leaf** — never two drawings of the
+  same structure.
+- **Diagram — content-driven, not a blanket rule**:
+  - default `kind: handdrawn` — a hand-drawn flowchart/sketch in the notebook's
+    visual language (memory + coherent look);
+  - `kind: mermaid` only when (a) the source already contains a ` ```mermaid `
+    block — extract and render, near-zero cost — or (b) the content is a decision
+    procedure / state machine / multi-branch sequence whose exact branching
+    matters. Storage: `.mmd` source (diffable) rendered to SVG at build time
+    (adr/0002);
+  - `kind: none` for leaves with nothing structural worth drawing.
+  - v1: a diagram's exact branching is **human-reviewed**, not machine-checked;
+    the verifier asserts label presence only.
+- **Hand-drawn art**: SVG with real `<text>` labels — never text→paths, because
+  the adherence verifier reads the labels. The handwriting font is embedded as a
+  subset (base64 `@font-face`) so it survives offline and re-theming.
+- **Self-test**: `prompt`/`reveal` authored at generation, stored in `plan.md` so
   they don't churn and can be hand-edited.
 - **Source node**: the collapsed audit bullets live in the map; it is the
   one-click audit surface for leaf-vs-source.
+- **Adherence**: generation is verified for more than presence — the critic +
+  grounding pass in §6.4 checks that each checklist item is captured faithfully,
+  not merely named.
 
 ## 9. Notebook model (replaces single-page notes)
 
@@ -177,12 +206,17 @@ leaf:
   zoom, the verifier can parse them, and size stays small.
 - **Shared assets**: one handwriting font + flip JS + theme per module under
   `mindmaps/assets/`, referenced (not inlined) by pages, cached once offline.
+- **Vendored look, not a skill dependency**: the handwriting look and hand-drawn
+  style are borrowed by copying the template + font + sketch assets into
+  `mindmaps/assets/`; the atlas never invokes the `handwritten-notes` /
+  `hand-drawn-diagrams` skills at generation time. It borrows the *aesthetics*,
+  not the *contract* — its checklist-fed, paged, verified pipeline is its own.
 - **Offline**: a leaf notebook works offline exactly like the module map;
   notebooks are leaf-scoped, never course-scoped.
 
 ## 10. Rendering
 
-- **Renderer**: markmap v1, behind a seam — the `spec.yml` is renderer-agnostic.
+- **Renderer**: markmap v1, behind a seam — the plan (`plan.md` → derived `spec.yml`) is renderer-agnostic.
 - Documented markmap workarounds (from the demo): `data:` image URIs are refused
   at markdown level → diagrams are injected into the tree JSON as base64 after
   transform; images survive only as image-only list items or standalone image
@@ -207,13 +241,22 @@ leaf:
 | skill | invocation | triggers |
 |---|---|---|
 | `revision-atlas` (router) | user-invoked | names the two below; zero context load |
-| `build-course-map` | user-invoked | heavy, batched: extract → spec → artifacts |
+| `build-course-map` | user-invoked | heavy, batched: extract → plan (2 gates) → generate |
 | `refresh-stale-leaves` | model-invoked | hash mismatch / "the source changed" / "refresh the atlas" |
 
 `refresh-stale-leaves` is model-invoked so the agent can reach it when it
 *notices* staleness; `build-course-map` stays human-gated (expensive, batched).
 The skill lives globally (`~/.dsh/skills/revision-atlas/`); artifacts live in
 each course repo's `mindmaps/`.
+
+The **plan (`plan.md`, with its derived `spec.yml`) is the common artifact both
+skills share** — the router routes by intent and state, not by duplicating the
+plan: no plan yet → build (create the plan, both gates, full generate); plan
+exists → refresh (diff source against the plan's content hashes). A refresh that
+only re-renders an unchanged leaf needs no gate; a refresh that changes
+**structure** (a new or removed section or linked file) or a **checklist**
+(edited content) re-enters the corresponding human gate for exactly the affected
+part — the plan can never change silently.
 
 ## 13. Directory layout (in each course repo)
 
@@ -223,30 +266,39 @@ mindmaps/
 ├── assets/               # font(s), flip JS, theme CSS
 ├── og/                   # PNG thumbnails
 └── <module-slug>/
-    ├── spec.yml
+    ├── plan.md            # human source of truth (approved)
+    ├── spec.yml           # derived machine contract (generated)
     ├── index.html        # self-contained module map
     └── leaves/<leaf-id>/
         ├── notebook.html
-        ├── *.mmd         # mermaid source
-        ├── mermaid.svg
-        └── sketch.svg
+        ├── diagram.svg   # hand-drawn, or rendered mermaid
+        └── diagram.mmd   # only when kind == mermaid
 ```
 
 ## 14. Verification & coverage report
 
 `build-course-map` ends by printing, per module: file inventory status; per-leaf
-checklist coverage; broken anchors; offline-purity (no external load-bearing
-refs in maps); notebook page count vs budget; `needs-review` count. Any
-unclassified file or coverage miss is a **failure**, not a warning.
+checklist coverage; per-leaf adherence (drift flags from the critic + grounding
+misses); broken anchors; offline-purity (no external load-bearing refs in maps);
+notebook page count vs budget; `needs-review` count. Any unclassified file or
+coverage miss is a **failure**, not a warning.
 
 ## 15. Milestones (tracer bullets) and open questions
 
 1. Extractor: inventory + link graph + classification ladder + closure check.
-2. Spec writer: `spec.yml` + per-leaf checklist (human-reviewable).
-3. Renderer: course index + module map (markmap, inline diagrams).
-4. Leaf generator: mermaid + sketch + recall/prompt/reveal + source node.
-5. Notebook generator: paged flip template + shared assets.
-6. Verifier + coverage report.
+2. Structure plan: full `plan.md` node graph (headings + kinds + diagram hints).
+   **Gate 1 — human approves coverage** (every H2/H3/H4, collapsible, mermaid
+   block, and linked markdown accounted for). Script derives `spec.yml`.
+3. Leaf plan: per-leaf `checklist` drafted from the section content.
+   **Gate 2 — human approves checklists** (information captured to the fullest).
+4. Renderer: course index + module map (markmap, inline diagrams) — runs against
+   the frozen plan.
+5. Leaf generator: diagram (hand-drawn/mermaid per §8) + recall/prompt/reveal +
+   source node — runs against the frozen checklist.
+6. Notebook generator: paged flip template + shared assets.
+7. Verifier: coverage (deterministic) + adherence (grounding + LLM critic) + report; post-gen human review is exception-only.
 
 Open: OG-image pipeline; the eventual publish step into the portfolio repo;
-whether `needs-review` blocks or merely annotates in v1.
+whether `needs-review` blocks or merely annotates in v1; the classifier that
+assigns each leaf's diagram kind (handdrawn vs mermaid vs none); whether the two
+plan gates are one combined approval step or two separate ones.
