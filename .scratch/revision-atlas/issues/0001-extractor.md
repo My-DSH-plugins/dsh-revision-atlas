@@ -2,7 +2,7 @@
 
 - **Blocked by:** —
 - **Blocks:** 0002
-- **Status:** ready
+- **Status:** done
 
 ## Goal
 
@@ -26,6 +26,8 @@ and `GenAI_notes/Harness Engineering/modules/02-model-failure-science`):
 - No LLM. Relationship classification beyond filename/heading rules → `needs-review`
 - No `plan.md` / `spec.yml` emission (that's 0002)
 
-## Open decision
+## Decision
 
-- Language: Node (matches the prototype `build-offline.mjs` + the plugin ecosystem). Confirm at implement time.
+- Language: **Python**, stdlib only. Code in `src/revision_atlas/extractor.py`,
+  tests in `tests/test_extractor.py`.
+  Run: `PYTHONPATH=src python3 -m unittest discover -s tests`.
