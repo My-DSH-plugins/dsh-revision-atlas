@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Revision Atlas">
+  <title>Revision Atlas</title>
+  <rect width="512" height="512" rx="112" fill="#0E1A2B"/>
+  <rect x="1" y="1" width="510" height="510" rx="111" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="2"/>
+
+  <g transform="translate(-18 0)">
+    <g fill="none" stroke="#4A6DA6" stroke-width="18" stroke-linecap="round">
+      <path d="M136 256 C 196 256, 214 150, 276 150"/>
+      <path d="M136 256 C 196 256, 214 362, 276 362"/>
+      <path d="M276 150 C 336 150, 340 88, 396 88"/>
+      <path d="M276 150 C 348 150, 356 202, 420 202"/>
+      <path d="M276 362 C 336 362, 340 316, 396 316"/>
+      <path d="M276 362 C 348 362, 356 430, 420 430"/>
+    </g>
+
+    <g>
+      <path d="M 378,51 H 408 L 426,69 V 113 Q 426,125 414,125 H 378 Q 366,125 366,113 V 63 Q 366,51 378,51 Z" fill="#C9DAF6"/>
+      <path d="M 408,51 L 426,69 L 408,69 Z" fill="#A2BCE6"/>
+      <g stroke="#AAC2E8" stroke-width="3" stroke-linecap="round">
+        <path d="M380 95 H 412"/>
+        <path d="M380 107 H 412"/>
+      </g>
+
+      <g transform="rotate(6 420 202)">
+        <path d="M 400,163 H 434 L 452,181 V 229 Q 452,241 440,241 H 400 Q 388,241 388,229 V 175 Q 388,163 400,163 Z" fill="#F5AC3E"/>
+        <path d="M 434,163 L 452,181 L 434,181 Z" fill="#C8801F"/>
+        <g stroke="#D99329" stroke-width="3" stroke-linecap="round">
+          <path d="M402 207 H 436"/>
+          <path d="M402 219 H 436"/>
+        </g>
+      </g>
+
+      <path d="M 378,279 H 408 L 426,297 V 341 Q 426,353 414,353 H 378 Q 366,353 366,341 V 291 Q 366,279 378,279 Z" fill="#C9DAF6"/>
+      <path d="M 408,279 L 426,297 L 408,297 Z" fill="#A2BCE6"/>
+      <g stroke="#AAC2E8" stroke-width="3" stroke-linecap="round">
+        <path d="M380 323 H 412"/>
+        <path d="M380 335 H 412"/>
+      </g>
+
+      <path d="M 402,393 H 432 L 450,411 V 455 Q 450,467 438,467 H 402 Q 390,467 390,455 V 405 Q 390,393 402,393 Z" fill="#C9DAF6"/>
+      <path d="M 432,393 L 450,411 L 432,411 Z" fill="#A2BCE6"/>
+      <g stroke="#AAC2E8" stroke-width="3" stroke-linecap="round">
+        <path d="M404 437 H 436"/>
+        <path d="M404 449 H 436"/>
+      </g>
+    </g>
+
+    <g fill="#EAF1FF">
+      <circle cx="276" cy="150" r="28"/>
+      <circle cx="276" cy="362" r="28"/>
+      <circle cx="136" cy="256" r="36"/>
+    </g>
+  </g>
+</svg>
