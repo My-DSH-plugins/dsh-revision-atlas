@@ -82,6 +82,24 @@ class TestStructurePlan(unittest.TestCase):
         self.assertEqual(out["coverage"]["needs_review"], 1)
         self.assertEqual(out["coverage"]["sections"], 9 + 4 + 6)
 
+    def test_leaf_checklist_closure(self):
+        # Every collapsible and every mermaid block lands in exactly one leaf's
+        # checklist — no orphan, no double-count.
+        for label, root_path in (("M2", M2), ("M5", M5)):
+            out = build_structure(extract(root_path))
+            leaves = [n for n in _all_nodes(out["root"]) if "checklist" in n]
+            seed_details = sum(1 for n in leaves for i in n["checklist"] if i["kind"] == "details")
+            seed_mermaid = sum(1 for n in leaves for i in n["checklist"] if i["kind"] == "mermaid")
+            self.assertEqual(seed_details, out["coverage"]["collapsibles"], label)
+            self.assertEqual(seed_mermaid, out["coverage"]["mermaid"], label)
+
+    def test_real_incidents_leaf_has_checklist(self):
+        out = build_structure(extract(M2))
+        nodes = list(_all_nodes(out["root"]))
+        ri = next(n for n in nodes if n["title"] == "Real incidents — the catalog in the wild")
+        self.assertIn("checklist", ri)
+        self.assertGreater(len(ri["checklist"]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

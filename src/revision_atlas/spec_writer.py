@@ -85,19 +85,83 @@ def _coverage(inv: dict, root: dict) -> dict:
     }
 
 
+# A node that owns content directly (and thus gets a checklist), as opposed to a
+# composite (`debate-pair`, `framework-matrix`) whose branches/children own it.
+LEAF_KINDS = frozenset(
+    {"section", "worked-example", "needs-review", "debate-for", "debate-against", "framework-domain"}
+)
+
+
+def _leaf_range(inv: dict, node: dict):
+    """Return (start, end) of the line range a leaf owns in its source file.
+
+    A README section leaf owns from its heading line to the next heading of equal
+    or higher rank; a sidecar leaf (no line) owns the whole file.
+    """
+    if node.get("line") is None:
+        return 1, float("inf")
+    rank = node["rank"]
+    start = node["line"]
+    end = float("inf")
+    for h in inv["headings"].get(node["file"], []):
+        if h["line"] > start and h["rank"] <= rank:
+            end = h["line"]
+            break
+    return start, end
+
+
+def _checklist_seed(inv: dict, node: dict) -> list:
+    """Grounded checklist items for a leaf: its collapsibles and mermaid blocks.
+
+    This is the deterministic seed; the agent appends semantic items (the key
+    claims) and the human approves the combined checklist at Gate 2.
+    """
+    file = node["file"]
+    start, end = _leaf_range(inv, node)
+    items = []
+    for d in inv["details_blocks"].get(file, []):
+        if start <= d["line"] < end:
+            items.append({"kind": "details", "line": d["line"], "summary": d["summary"]})
+    for mline in inv["mermaid_blocks"].get(file, []):
+        if start <= mline < end:
+            items.append({"kind": "mermaid", "line": mline})
+    return items
+
+
+def _annotate_leaves(inv: dict, node: dict) -> dict:
+    """Attach a `checklist` seed to every leaf node, in place."""
+    for b in (node.get("branches") or {}).values():
+        _annotate_leaves(inv, b)
+    for c in node.get("children", []):
+        _annotate_leaves(inv, c)
+    if node["kind"] in LEAF_KINDS and not node.get("children"):
+        node["checklist"] = _checklist_seed(inv, node)
+    return node
+
+
 def _render_md(root: dict, coverage: dict) -> str:
     lines: List[str] = []
 
     def walk(node: dict, depth: int) -> None:
+        pad = "  " * max(depth - 1, 0)
         if node["kind"] in ("module", "section"):
             lines.append("#" * node["rank"] + " " + node["title"])
         else:
-            pad = "  " * max(depth - 1, 0)
             lines.append(f"{pad}- **{node['title']}** · kind: {node['kind']}")
             for bname, bnode in (node.get("branches") or {}).items():
                 lines.append(f"{pad}  - {bname}: `{bnode['file']}`")
             if node.get("canonical"):
                 lines.append(f"{pad}  - canonical: `{node['canonical']}`")
+        if node.get("checklist") is not None:
+            ipad = pad + "  "
+            if not node["checklist"]:
+                lines.append(f"{ipad}- (checklist: empty — semantic items pending)")
+            for it in node["checklist"]:
+                if it["kind"] == "details":
+                    label = it["summary"] or f"line {it['line']}"
+                    lines.append(f"{ipad}- [details] {label}")
+                elif it["kind"] == "mermaid":
+                    lines.append(f"{ipad}- [diagram] mermaid (line {it['line']})")
         for child in node.get("children", []):
             walk(child, depth + 1)
 
@@ -109,7 +173,8 @@ def _render_md(root: dict, coverage: dict) -> str:
         "## Coverage: "
         f"{cov['classified']} classified · {cov['ignored']} ignored · "
         f"{cov['needs_review']} needs-review · {cov['sections']} sections · "
-        f"{cov['collapsibles']} collapsibles · {cov['mermaid']} mermaid",
+        f"{cov['leaves']} leaves · {cov['collapsibles']} collapsibles · "
+        f"{cov['mermaid']} mermaid",
         "",
     ]
     return "\n".join(head + lines)
@@ -204,7 +269,23 @@ def build_structure(inv: dict) -> dict:
              "file": f["path"], "line": None, "children": []}
         )
 
+    _annotate_leaves(inv, root)
+
+    def _leaf_stats(node, acc):
+        for b in (node.get("branches") or {}).values():
+            _leaf_stats(b, acc)
+        for c in node.get("children", []):
+            _leaf_stats(c, acc)
+        if "checklist" in node:
+            acc["leaves"] += 1
+            if not node["checklist"]:
+                acc["empty"] += 1
+
+    stats = {"leaves": 0, "empty": 0}
+    _leaf_stats(root, stats)
     coverage = _coverage(inv, root)
+    coverage["leaves"] = stats["leaves"]
+    coverage["empty_leaves"] = stats["empty"]
     return {
         "module": root["title"],
         "coverage": coverage,
