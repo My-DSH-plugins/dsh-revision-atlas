@@ -1,0 +1,232 @@
+"""Structure-plan writer (ticket 0002).
+
+Turns the extractor's inventory into a structure plan — the first, human-approved
+artifact of the pipeline:
+
+  - `plan_md` — a human-readable Markdown outline (headings = the faithful tree;
+    sidecar nodes attached with `· kind:` annotations),
+  - `spec` — the derived machine contract (ids, kinds, sources, children, typed
+    edges), which 0004+ consume.
+
+Deterministic; no LLM. The human gate (approval of plan_md) happens after this
+function returns; nothing here generates any leaf artifact.
+"""
+from __future__ import annotations
+
+import json
+import re
+from typing import Dict, List, Optional
+
+from .extractor import extract
+
+
+def _slug(text: str) -> str:
+    s = re.sub(r"[^\w\s-]", "", text.lower()).strip()
+    s = re.sub(r"[\s]+", "-", s)
+    return s or "node"
+
+
+def _h1_title(entry: dict, headings: Dict[str, List[dict]]) -> str:
+    h1 = next((h for h in headings.get(entry["path"], []) if h["rank"] == 1), None)
+    return h1["text"] if h1 else entry["path"]
+
+
+def _build_heading_tree(headings: List[dict], file: str):
+    """Faithfully mirror the README heading outline as a node tree."""
+    root = None
+    stack: List[dict] = []
+    line_to_node: Dict[int, dict] = {}
+    for h in headings:
+        node = {
+            "id": _slug(h["text"]),
+            "title": h["text"],
+            "kind": "section",
+            "rank": h["rank"],
+            "file": file,
+            "line": h["line"],
+            "children": [],
+        }
+        if root is None:
+            root = node
+            root["kind"] = "module"
+            stack = [root]
+        else:
+            while stack and stack[-1]["rank"] >= h["rank"]:
+                stack.pop()
+            parent = stack[-1] if stack else root
+            parent["children"].append(node)
+            stack.append(node)
+        line_to_node[h["line"]] = node
+    return root, line_to_node
+
+
+def _leaf_node(entry: dict, headings: Dict[str, List[dict]], kind: str) -> dict:
+    return {
+        "id": _slug(_h1_title(entry, headings)),
+        "title": _h1_title(entry, headings),
+        "kind": kind,
+        "file": entry["path"],
+        "line": None,
+        "children": [],
+    }
+
+
+def _coverage(inv: dict, root: dict) -> dict:
+    c = inv["closure"]
+    h = inv["headings"].get(root["file"], [])
+    return {
+        "files": c["enumerated"],
+        "classified": c["classified"],
+        "ignored": c["ignored"],
+        "needs_review": c["needs_review"],
+        "sections": sum(1 for x in h if x["rank"] >= 2),
+        "collapsibles": sum(len(v) for v in inv["details_blocks"].values()),
+        "mermaid": sum(len(v) for v in inv["mermaid_blocks"].values()),
+    }
+
+
+def _render_md(root: dict, coverage: dict) -> str:
+    lines: List[str] = []
+
+    def walk(node: dict, depth: int) -> None:
+        if node["kind"] in ("module", "section"):
+            lines.append("#" * node["rank"] + " " + node["title"])
+        else:
+            pad = "  " * max(depth - 1, 0)
+            lines.append(f"{pad}- **{node['title']}** · kind: {node['kind']}")
+            for bname, bnode in (node.get("branches") or {}).items():
+                lines.append(f"{pad}  - {bname}: `{bnode['file']}`")
+            if node.get("canonical"):
+                lines.append(f"{pad}  - canonical: `{node['canonical']}`")
+        for child in node.get("children", []):
+            walk(child, depth + 1)
+
+    walk(root, 1)
+    cov = coverage
+    head = [
+        f"# Plan — {root['title']} · status: proposed",
+        "",
+        "## Coverage: "
+        f"{cov['classified']} classified · {cov['ignored']} ignored · "
+        f"{cov['needs_review']} needs-review · {cov['sections']} sections · "
+        f"{cov['collapsibles']} collapsibles · {cov['mermaid']} mermaid",
+        "",
+    ]
+    return "\n".join(head + lines)
+
+
+def build_structure(inv: dict) -> dict:
+    readme = next(f for f in inv["files"] if f.get("kind") == "module")
+    readme_headings = inv["headings"].get(readme["path"], [])
+    root, line_to_node = _build_heading_tree(readme_headings, readme["path"])
+
+    sidecars = [
+        f for f in inv["files"] if f["status"] == "classified" and f.get("kind") != "module"
+    ]
+    residue = [f for f in inv["files"] if f["status"] == "needs_review"]
+
+    # Group sidecars into composite nodes.
+    debate: Dict[str, Dict[str, dict]] = {}
+    domains: List[dict] = []
+    aggregator: Optional[dict] = None
+    worked: List[dict] = []
+    for f in sidecars:
+        k = f["kind"]
+        if k in ("debate-for", "debate-against"):
+            stem = re.sub(r"-(for|against)\.md$", "", f["path"], flags=re.I)
+            debate.setdefault(stem, {})["for" if k == "debate-for" else "against"] = f
+        elif k == "framework-domain":
+            domains.append(f)
+        elif k == "aggregator":
+            aggregator = f
+        elif k == "worked-example":
+            worked.append(f)
+
+    # README link targets -> first line that cites them (attachment point).
+    link_line: Dict[str, int] = {}
+    for l in inv["links"].get(readme["path"], []):
+        base = l["target"].rsplit("/", 1)[-1]
+        link_line.setdefault(base, l["line"])
+
+    def attach(node: dict, file: "Optional[str]"):
+        line = link_line.get(file) if file else None
+        if line is not None:
+            # Evidence: the README line that cites this sidecar (the edge's proof).
+            node["evidence"] = {"file": readme["path"], "line": line}
+        sec = None
+        for h in readme_headings:
+            if h["line"] <= line and (sec is None or h["line"] > sec["line"]):
+                sec = h
+        parent = line_to_node.get(sec["line"]) if sec else root
+        parent["children"].append(node)
+
+    for stem, pair in sorted(debate.items()):
+        src = pair.get("for") or pair.get("against")
+        node = {
+            "id": _slug(_h1_title(src, inv["headings"])),
+            "title": _h1_title(src, inv["headings"]),
+            "kind": "debate-pair",
+            "file": None,
+            "line": None,
+            "children": [],
+            "branches": {},
+        }
+        if "for" in pair:
+            node["branches"]["for"] = _leaf_node(pair["for"], inv["headings"], "debate-for")
+        if "against" in pair:
+            node["branches"]["against"] = _leaf_node(
+                pair["against"], inv["headings"], "debate-against"
+            )
+        attach(node, (pair.get("for") or pair.get("against"))["path"].rsplit("/", 1)[-1])
+
+    for f in worked:
+        attach(_leaf_node(f, inv["headings"], "worked-example"), f["path"].rsplit("/", 1)[-1])
+
+    # Framework matrix: one node owning every task-state file; the aggregator is
+    # the canonical source. Attach at root (these files aren't linked from README).
+    if domains or aggregator:
+        all_f = list(domains) + ([aggregator] if aggregator else [])
+        title = _h1_title(aggregator, inv["headings"]) if aggregator else "Task state"
+        matrix = {
+            "id": _slug(title),
+            "title": title,
+            "kind": "framework-matrix",
+            "file": None,
+            "line": None,
+            "children": [_leaf_node(f, inv["headings"], "framework-domain") for f in sorted(all_f, key=lambda x: x["path"])],
+            "canonical": aggregator["path"] if aggregator else None,
+        }
+        root["children"].append(matrix)
+
+    for f in residue:
+        root["children"].append(
+            {"id": _slug(f["path"]), "title": f["path"], "kind": "needs-review",
+             "file": f["path"], "line": None, "children": []}
+        )
+
+    coverage = _coverage(inv, root)
+    return {
+        "module": root["title"],
+        "coverage": coverage,
+        "root": root,
+        "plan_md": _render_md(root, coverage),
+        "spec": {"module": root["title"], "root": root},
+    }
+
+
+def main(argv: "List[str] | None" = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Revision Atlas structure-plan writer (ticket 0002)")
+    ap.add_argument("module_dir")
+    args = ap.parse_args(argv)
+    inv = extract(args.module_dir)
+    out = build_structure(inv)
+    print(out["plan_md"])
+    print("\n--- spec.json (derived) ---")
+    print(json.dumps(out["spec"], indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

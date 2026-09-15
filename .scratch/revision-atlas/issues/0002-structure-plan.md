@@ -2,7 +2,7 @@
 
 - **Blocked by:** 0001
 - **Blocks:** 0003, 0004
-- **Status:** ready after 0001
+- **Status:** done
 
 ## Goal
 
@@ -25,3 +25,13 @@ annotations. Then derive the structure fields of `spec.yml` (ids, `sources`,
 ## Open decision
 
 - Gate UX: one combined approval for structure+leaf, or two separate (with 0003, §15).
+- `· diagram:` annotations are deferred — the diagram-kind classifier is §15's open
+  question; 0002 emits `· kind:` only.
+
+## Notes (implementation)
+
+- The derived machine contract is emitted as `spec.json` (stdlib `json`, no
+  PyYAML dependency) rather than `spec.yml`; trivially switchable if a YAML
+  dependency is added.
+- Typed edges carry `evidence` (`{file, line}` = the README line that cited the
+  sidecar); unlinked nodes (framework-matrix, needs-review) have none.
