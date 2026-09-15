@@ -3,7 +3,7 @@
 Ticket 0001. No LLM. Walks one module directory and emits, for every markdown
 file: its classification (classified / ignored / needs_review), a deterministic
 relationship `kind` where one applies, its headings, relative .md links, mermaid
-fences and <details> blocks.
+fences, and its `<details>` collapsibles with their `<summary>` labels.
 
 Deterministic classification (SPEC §7, filename/structure signals only — the
 residue is flagged, never guessed):
@@ -54,6 +54,7 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 _DEBATE_RE = re.compile(r"-(for|against)\.md$", re.IGNORECASE)
 _TASK_STATE_RE = re.compile(r"^task-state-[a-z0-9-]+\.md$", re.IGNORECASE)
+_SUMMARY_RE = re.compile(r"<summary[^>]*>(.*?)</summary>", re.IGNORECASE | re.DOTALL)
 
 
 def _fence_info(stripped: str) -> "str | None":
@@ -74,40 +75,59 @@ def _is_relative_md(target: str) -> bool:
     return target.split("#", 1)[0].lower().endswith(".md")
 
 
-def _parse_file(path: Path) -> Tuple[List[dict], List[dict], List[int], List[int]]:
-    """Return (headings, links, mermaid_lines, details_lines) for one markdown file."""
+def _extract_summary(lines: List[str], start: int, window: int = 5) -> "str | None":
+    """Return the verbatim inner text of a <details> block's <summary>, or None.
+
+    Scans forward from the `<details>` line, since a summary may sit on the same
+    line or a later one. Verbatim: inner markdown/HTML is preserved and only
+    surrounding whitespace is trimmed — stripping markup is 0002's call.
+    """
+    chunk = "".join(lines[start:start + window])
+    m = _SUMMARY_RE.search(chunk)
+    return m.group(1).strip() if m else None
+
+
+def _parse_file(path: Path) -> Tuple[List[dict], List[dict], List[int], List[dict]]:
+    """Return (headings, links, mermaid_lines, details) for one markdown file.
+
+    `details` items are `{"line": int, "summary": str | None}` — a collapsible's
+    position and its label. Bodies are never copied; they stay addressed by
+    position and are read later by the generator.
+    """
     headings: List[dict] = []
     links: List[dict] = []
     mermaid_lines: List[int] = []
-    details_lines: List[int] = []
-    in_fence = False
+    details: List[dict] = []
     with open(path, "r", encoding="utf-8") as f:
-        for lineno, line in enumerate(f, 1):
-            stripped = line.strip()
-            fence = _fence_info(stripped)
-            if fence is not None:
-                if in_fence:
-                    if fence == "":
-                        in_fence = False
-                else:
-                    in_fence = True
-                    if fence.lower() == "mermaid":
-                        mermaid_lines.append(lineno)
-                continue
+        lines = f.readlines()
+    in_fence = False
+    for idx, line in enumerate(lines):
+        lineno = idx + 1
+        stripped = line.strip()
+        fence = _fence_info(stripped)
+        if fence is not None:
             if in_fence:
-                continue
-            m = _HEADING_RE.match(line.rstrip("\n"))
-            if m:
-                headings.append(
-                    {"rank": len(m.group(1)), "text": m.group(2).strip(), "line": lineno}
-                )
-            if "<details" in stripped:
-                details_lines.append(lineno)
-            for lm in _LINK_RE.finditer(line):
-                target = lm.group(1).strip()
-                if _is_relative_md(target):
-                    links.append({"target": target, "line": lineno})
-    return headings, links, mermaid_lines, details_lines
+                if fence == "":
+                    in_fence = False
+            else:
+                in_fence = True
+                if fence.lower() == "mermaid":
+                    mermaid_lines.append(lineno)
+            continue
+        if in_fence:
+            continue
+        m = _HEADING_RE.match(line.rstrip("\n"))
+        if m:
+            headings.append(
+                {"rank": len(m.group(1)), "text": m.group(2).strip(), "line": lineno}
+            )
+        if "<details" in stripped:
+            details.append({"line": lineno, "summary": _extract_summary(lines, idx)})
+        for lm in _LINK_RE.finditer(line):
+            target = lm.group(1).strip()
+            if _is_relative_md(target):
+                links.append({"target": target, "line": lineno})
+    return headings, links, mermaid_lines, details
 
 
 def _classify_sidecar(posix: str, headings: List[dict]) -> "str | None":
@@ -143,7 +163,7 @@ def extract(root: "str | Path") -> dict:
     headings: Dict[str, List[dict]] = {}
     links: Dict[str, List[dict]] = {}
     mermaid: Dict[str, List[int]] = {}
-    details: Dict[str, List[int]] = {}
+    details: Dict[str, List[dict]] = {}
 
     for rel in md_files:
         posix = rel.as_posix()

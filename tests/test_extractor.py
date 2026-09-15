@@ -82,7 +82,9 @@ class TestExtractor(unittest.TestCase):
         self.assertEqual(ranks[3], 4, "four H3 subsections")
         self.assertEqual(ranks[4], 6, "six H4 stages")
         self.assertEqual(len(inv["mermaid_blocks"]["README.md"]), 6)
-        self.assertEqual(len(inv["details_blocks"]["README.md"]), 59)
+        details = inv["details_blocks"]["README.md"]
+        self.assertEqual(len(details), 59)
+        self.assertTrue(all(d["summary"] for d in details), "every collapsible carries its label")
 
     def test_m2_closure_kinds_and_links(self):
         inv = extract(M2)
@@ -100,6 +102,10 @@ class TestExtractor(unittest.TestCase):
         self.assertEqual(kinds["06-class-6-chain-depth-worked-example.md"], "worked-example")
         self.assertEqual(kinds["task-state-across-domains.md"], "aggregator")
         self.assertEqual(kinds["task-state-finance-rebalance.md"], "framework-domain")
+
+        details = inv["details_blocks"]["README.md"]
+        self.assertEqual(len(details), 12)
+        self.assertTrue(all(d["summary"] for d in details), "every collapsible carries its label")
 
         targets = {l["target"] for l in inv["links"]["README.md"]}
         self.assertEqual(
@@ -196,6 +202,37 @@ class TestExtractorBehavior(unittest.TestCase):
             self.assertEqual(kinds["a-vs-b-against.md"], "debate-against")
             self.assertEqual(kinds["task-state-alpha.md"], "framework-domain")
             self.assertEqual(kinds["task-state-across.md"], "aggregator")
+        finally:
+            d.cleanup()
+
+    def test_details_summaries_captured_verbatim(self):
+        # summary on the same line, and on the following line; markup preserved
+        d, root = self._tmp_module(
+            {
+                "README.md": (
+                    "# r\n"
+                    "\n"
+                    "<details><summary>Inline label</summary>\n"
+                    "body\n"
+                    "</details>\n"
+                    "\n"
+                    "<details>\n"
+                    "<summary><strong>Nested label</strong> — with markup</summary>\n"
+                    "body\n"
+                    "</details>\n"
+                    "\n"
+                    "<details>\n"
+                    "no summary here\n"
+                    "</details>\n"
+                )
+            }
+        )
+        try:
+            blocks = extract(root)["details_blocks"]["README.md"]
+            self.assertEqual([b["line"] for b in blocks], [3, 7, 12])
+            self.assertEqual(blocks[0]["summary"], "Inline label")
+            self.assertEqual(blocks[1]["summary"], "<strong>Nested label</strong> — with markup")
+            self.assertIsNone(blocks[2]["summary"])
         finally:
             d.cleanup()
 

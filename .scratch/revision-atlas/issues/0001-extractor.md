@@ -8,8 +8,9 @@
 
 Deterministically scan one module directory and emit a normalized inventory:
 every markdown file classified `classified` / `ignored` / `needs-review`, its
-headings (rank + line), relative `.md` links (with the link's line as evidence),
-mermaid blocks, and `<details>` runs.
+headings (rank + text + line), relative `.md` links (target + line), mermaid
+fences (line), and `<details>` collapsibles as `{line, summary}` — the label
+captured verbatim, the body addressed by position and never copied.
 
 ## Acceptance (the "red" test)
 
