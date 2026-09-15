@@ -1,9 +1,10 @@
-# mindmap-demo
+# mindmap-demo (prototype)
 
-A **dummy** mind map that tests the "module -> h2 -> h3 -> leaf with a diagram"
-navigation idea — **online and offline**. It mirrors the real course shape used
-in `modules/05-data-engineering-2/README.md` (the demo adds one dummy root
-level; for real modules the module `#` heading would BE the root).
+A **throwaway prototype** that proved the "module -> h2 -> h3 -> leaf with a
+diagram" navigation idea — online and offline. It was built against ML-Engineer's
+`modules/05-data-engineering-2/README.md` shape (one dummy root level added; for
+real modules the module `#` heading would BE the root), then relocated here:
+course content stays in the course repo, and this prototype belongs to the atlas.
 
 ## Files
 
@@ -38,31 +39,33 @@ One subtlety: markmap's Markdown parser refuses `data:` image URLs, so the
 build (`build-offline.mjs`) first transforms `demo.md` into the markmap tree,
 then rewrites every `<img src>` in the tree to a data: URI — the file has no
 `<script src>`, `<link>`, or `<img src="http…">` left in it at all. The same
-file therefore also works perfectly online (GitHub Pages, htmlpreview, …).
+file therefore also works when hosted anywhere (GitHub Pages, htmlpreview, …).
 
 Regenerate after editing `demo.md` or `images/`:
 
 ```bash
-bash mindmap-demo/build.sh    # requires node + internet once (installs deps)
+bash prototype/build.sh   # from the repo root; needs node + internet once
 ```
 
-## Viewing on an Android phone
+## Viewing it
 
-**Online (portfolio / sharing):** push to GitHub, then either
+`demo-map.html` is self-contained, so the easiest path needs no server:
 
-- GitHub Pages: repo -> Settings -> Pages -> Deploy from branch `main`, folder `/`,
-  then open `https://akshaydev17.github.io/ML-Engineer/mindmap-demo/demo-map.html`
-- or zero-setup preview:
-  `https://htmlpreview.github.io/?https://github.com/akshayDev17/ML-Engineer/blob/main/mindmap-demo/demo-map.html`
+**Open the file directly** — clone/download the repo, then open
+`prototype/demo-map.html` in a browser (on a phone, open it with Chrome).
 
-**Offline:** download the single file once while you have a connection, then
-open it any time with Chrome — no network needed after that:
+**On a phone, offline:**
 
-1. GitHub app (or browser) -> repo -> `mindmap-demo` -> `demo-map.html` ->
-   **⋮ -> Download** (saves the raw file).
-2. In the Files/Downloads app, tap the file -> **open with Chrome**.
-   (If your phone asks, always pick Chrome, not a text/HTML-code viewer.)
+1. GitHub -> repo -> `prototype/demo-map.html` -> **⋮ -> Download** (saves the raw file).
+2. In Files/Downloads, tap the file -> **open with Chrome**. (If asked, always pick
+   Chrome, not a text/HTML-code viewer.)
 3. Verify: turn on airplane mode, open it again — it still works.
+
+**Online preview, no setup:**
+`https://htmlpreview.github.io/?https://github.com/My-DSH-plugins/dsh-revision-atlas/blob/main/prototype/demo-map.html`
+
+**GitHub Pages (optional):** if you enable Pages on this repo, it serves at
+`https://my-dsh-plugins.github.io/dsh-revision-atlas/prototype/demo-map.html`.
 
 Gestures: **drag** = pan, **pinch** = zoom, **tap a circle** = expand/collapse;
 a floating toolbar (bottom-right) has +/−/fit controls.
