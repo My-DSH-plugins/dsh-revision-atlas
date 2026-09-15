@@ -44,7 +44,13 @@ def _classified(inv):
     return {f["path"] for f in inv["files"] if f["status"] == "classified"}
 
 
-def _independent_classified(root):
+def _non_ignored(inv):
+    return {
+        f["path"] for f in inv["files"] if f["status"] in ("classified", "needs_review")
+    }
+
+
+def _independent_non_ignored(root):
     return {
         p.relative_to(root).as_posix()
         for p in root.rglob("*")
@@ -58,8 +64,16 @@ def _independent_classified(root):
 class TestExtractor(unittest.TestCase):
     def test_m5_closure_counts_and_structure(self):
         inv = extract(M5)
-        self.assertEqual(_classified(inv), {"README.md", "code/README.md"})
+        self.assertEqual(_classified(inv), {"README.md"})
+        self.assertEqual(
+            {f["path"] for f in inv["files"] if f["status"] == "needs_review"},
+            {"code/README.md"},
+        )
         self.assertEqual(inv["closure"]["unaccounted"], 0)
+        self.assertEqual(inv["closure"]["needs_review"], 1)
+
+        by = {f["path"]: f for f in inv["files"]}
+        self.assertEqual(by["README.md"]["kind"], "module")
 
         h = inv["headings"]["README.md"]
         ranks = Counter(x["rank"] for x in h)
@@ -70,16 +84,24 @@ class TestExtractor(unittest.TestCase):
         self.assertEqual(len(inv["mermaid_blocks"]["README.md"]), 6)
         self.assertEqual(len(inv["details_blocks"]["README.md"]), 59)
 
-    def test_m2_closure_ignore_and_links(self):
+    def test_m2_closure_kinds_and_links(self):
         inv = extract(M2)
         self.assertEqual(_classified(inv), M2_EXPECTED)
+        self.assertEqual(inv["closure"]["needs_review"], 0)
         self.assertEqual(inv["closure"]["unaccounted"], 0)
 
-        by_status = {f["path"]: f["status"] for f in inv["files"]}
-        self.assertEqual(by_status.get("scratch/notes-outline.md"), "ignored")
+        by = {f["path"]: f for f in inv["files"]}
+        self.assertEqual(by["scratch/notes-outline.md"]["status"], "ignored")
+        kinds = {p: by[p]["kind"] for p in M2_EXPECTED}
+        self.assertEqual(kinds["README.md"], "module")
+        self.assertEqual(kinds["04-instruction-drift-vs-05-position-bias-for.md"], "debate-for")
+        self.assertEqual(kinds["04-instruction-drift-vs-05-position-bias-against.md"], "debate-against")
+        self.assertEqual(kinds["06-reasoning-load-vs-04-instruction-drift-for.md"], "debate-for")
+        self.assertEqual(kinds["06-class-6-chain-depth-worked-example.md"], "worked-example")
+        self.assertEqual(kinds["task-state-across-domains.md"], "aggregator")
+        self.assertEqual(kinds["task-state-finance-rebalance.md"], "framework-domain")
 
-        readme_links = inv["links"]["README.md"]
-        targets = {l["target"] for l in readme_links}
+        targets = {l["target"] for l in inv["links"]["README.md"]}
         self.assertEqual(
             targets,
             {
@@ -95,7 +117,7 @@ class TestExtractor(unittest.TestCase):
     def test_closure_matches_independent_walk(self):
         for root in (M5, M2):
             inv = extract(root)
-            self.assertEqual(_classified(inv), _independent_classified(root))
+            self.assertEqual(_non_ignored(inv), _independent_non_ignored(root))
 
 
 class TestExtractorBehavior(unittest.TestCase):
@@ -144,6 +166,36 @@ class TestExtractorBehavior(unittest.TestCase):
         try:
             inv = extract(root)
             self.assertIn("NOTES.MD", {f["path"] for f in inv["files"]})
+        finally:
+            d.cleanup()
+
+    def test_residue_becomes_needs_review(self):
+        d, root = self._tmp_module({"README.md": "# r\n", "mystery.md": "# m\n"})
+        try:
+            inv = extract(root)
+            by = {f["path"]: f["status"] for f in inv["files"]}
+            self.assertEqual(by["mystery.md"], "needs_review")
+            self.assertEqual(inv["closure"]["needs_review"], 1)
+        finally:
+            d.cleanup()
+
+    def test_deterministic_kinds(self):
+        d, root = self._tmp_module(
+            {
+                "README.md": "# r\n",
+                "a-vs-b-for.md": "# f\n",
+                "a-vs-b-against.md": "# a\n",
+                "task-state-alpha.md": "# A\n\n## Scenario\n",
+                "task-state-across.md": "# A\n\n## Table of Contents\n\n# B\n",
+            }
+        )
+        try:
+            inv = extract(root)
+            kinds = {f["path"]: f["kind"] for f in inv["files"] if f["status"] == "classified"}
+            self.assertEqual(kinds["a-vs-b-for.md"], "debate-for")
+            self.assertEqual(kinds["a-vs-b-against.md"], "debate-against")
+            self.assertEqual(kinds["task-state-alpha.md"], "framework-domain")
+            self.assertEqual(kinds["task-state-across.md"], "aggregator")
         finally:
             d.cleanup()
 

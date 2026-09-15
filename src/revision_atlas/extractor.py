@@ -1,13 +1,27 @@
 """Deterministic inventory extractor for a course-module directory.
 
-Ticket 0001. No LLM: walks one module directory and emits, for every markdown
-file, its classification (classified / ignored / needs_review), its headings,
-relative .md links, mermaid fences and <details> blocks.
+Ticket 0001. No LLM. Walks one module directory and emits, for every markdown
+file: its classification (classified / ignored / needs_review), a deterministic
+relationship `kind` where one applies, its headings, relative .md links, mermaid
+fences and <details> blocks.
 
-Closure invariant (enforced, not merely reported):
-- every .md is accounted for exactly once (unaccounted fails the run);
-- every relative .md link that points inside the module tree resolves to a real
-  file (a dangling link fails the run).
+Deterministic classification (SPEC §7, filename/structure signals only — the
+residue is flagged, never guessed):
+
+  root README.md                    -> module
+  *-for.md / *-against.md           -> debate-for / debate-against
+  task-state-*.md (own TOC or >1 H1)-> aggregator
+  task-state-*.md                   -> framework-domain
+  *worked-example*.md               -> worked-example
+  everything else                   -> needs_review  (0002 / human types it)
+
+These file-level hints map up to SPEC §5 node kinds in 0002: a debate-for and its
+debate-against become one `debate-pair` node; the `framework-domain` files and
+their `aggregator` become one `framework-matrix` node.
+
+Closure invariant (enforced, not merely reported): every .md is accounted for
+exactly once, and every relative .md link that points inside the module tree
+resolves to a real file.
 """
 from __future__ import annotations
 
@@ -38,6 +52,8 @@ IGNORED_DIRS = frozenset(
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+_DEBATE_RE = re.compile(r"-(for|against)\.md$", re.IGNORECASE)
+_TASK_STATE_RE = re.compile(r"^task-state-[a-z0-9-]+\.md$", re.IGNORECASE)
 
 
 def _fence_info(stripped: str) -> "str | None":
@@ -94,6 +110,26 @@ def _parse_file(path: Path) -> Tuple[List[dict], List[dict], List[int], List[int
     return headings, links, mermaid_lines, details_lines
 
 
+def _classify_sidecar(posix: str, headings: List[dict]) -> "str | None":
+    """Deterministically type a non-README sidecar, or return None (residue)."""
+    name = posix.rsplit("/", 1)[-1]
+    m = _DEBATE_RE.search(name)
+    if m:
+        return "debate-" + m.group(1).lower()
+    if _TASK_STATE_RE.match(name):
+        h1_count = sum(1 for h in headings if h["rank"] == 1)
+        has_toc = any(
+            h["rank"] == 2 and h["text"].strip().lower().startswith("table of contents")
+            for h in headings
+        )
+        if h1_count > 1 or has_toc:
+            return "aggregator"
+        return "framework-domain"
+    if "worked-example" in name.lower():
+        return "worked-example"
+    return None
+
+
 def extract(root: "str | Path") -> dict:
     root = Path(root)
     rroot = root.resolve()
@@ -117,9 +153,21 @@ def extract(root: "str | Path") -> dict:
                 {"path": posix, "status": "ignored", "reason": f"noise dir ({matched})"}
             )
             continue
-        reason = "module README" if posix.lower() == "readme.md" else "sidecar"
-        files.append({"path": posix, "status": "classified", "reason": reason})
         h, l, m, d = _parse_file(root / rel)
+        if posix.lower() == "readme.md":
+            files.append(
+                {"path": posix, "status": "classified", "kind": "module", "reason": "module README"}
+            )
+        else:
+            kind = _classify_sidecar(posix, h)
+            if kind is not None:
+                files.append(
+                    {"path": posix, "status": "classified", "kind": kind, "reason": f"typed: {kind}"}
+                )
+            else:
+                files.append(
+                    {"path": posix, "status": "needs_review", "reason": "untyped sidecar (residue)"}
+                )
         headings[posix] = h
         links[posix] = l
         mermaid[posix] = m
@@ -147,8 +195,6 @@ def extract(root: "str | Path") -> dict:
         "enumerated": len(files),
         "classified": sum(1 for f in files if f["status"] == "classified"),
         "ignored": sum(1 for f in files if f["status"] == "ignored"),
-        # Always 0 in 0001: relationship classification (and the residue that
-        # becomes `needs_review`) is owned by 0002.
         "needs_review": sum(1 for f in files if f["status"] == "needs_review"),
         "unaccounted": sum(
             1 for f in files if f["status"] not in ("classified", "ignored", "needs_review")
