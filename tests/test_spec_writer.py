@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from revision_atlas.extractor import extract
-from revision_atlas.spec_writer import build_structure
+from revision_atlas.spec_writer import build_structure, main
 
 M5 = Path(
     os.environ.get(
@@ -111,6 +111,31 @@ class TestStructurePlan(unittest.TestCase):
         self.assertEqual(leaf["checklist"][0]["kind"], "claim")
         self.assertEqual(leaf["checklist"][0]["text"], "Fluent false output")
         self.assertIn("Fluent false output", out["plan_md"])
+
+
+class TestPlanWriterCLI(unittest.TestCase):
+    def test_out_dir_and_semantic_file(self):
+        import contextlib
+        import io
+        import json
+        import tempfile
+
+        d = tempfile.TemporaryDirectory()
+        root = Path(d.name)
+        (root / "README.md").write_text("# R\n\n## A\ncontent\n", encoding="utf-8")
+        semfile = root / "semantic.json"
+        semfile.write_text(json.dumps({"A": ["claim one"]}), encoding="utf-8")
+        outdir = root / "out"
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = main([str(root), "--out-dir", str(outdir), "--semantic", str(semfile)])
+            self.assertEqual(rc, 0)
+            self.assertTrue((outdir / "plan.md").exists())
+            self.assertTrue((outdir / "spec.json").exists())
+            self.assertIn("claim one", (outdir / "plan.md").read_text(encoding="utf-8"))
+        finally:
+            d.cleanup()
 
 
 if __name__ == "__main__":

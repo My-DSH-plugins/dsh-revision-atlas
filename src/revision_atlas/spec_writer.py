@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from .extractor import extract
@@ -305,14 +306,36 @@ def build_structure(inv: dict, semantic: "Optional[Dict[str, List[str]]]" = None
 def main(argv: "List[str] | None" = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="Revision Atlas structure-plan writer (ticket 0002)")
-    ap.add_argument("module_dir")
+    ap = argparse.ArgumentParser(description="Revision Atlas plan writer (tickets 0002+0003)")
+    ap.add_argument("module_dir", help="path to a course-module directory")
+    ap.add_argument(
+        "--semantic",
+        help="JSON file mapping leaf title -> claim strings (the agent pass)",
+    )
+    ap.add_argument(
+        "--out-dir",
+        help="write plan.md + spec.json here (default: print both to stdout)",
+    )
     args = ap.parse_args(argv)
+
     inv = extract(args.module_dir)
-    out = build_structure(inv)
-    print(out["plan_md"])
-    print("\n--- spec.json (derived) ---")
-    print(json.dumps(out["spec"], indent=2))
+    semantic = None
+    if args.semantic:
+        with open(args.semantic, encoding="utf-8") as f:
+            semantic = json.load(f)
+    out = build_structure(inv, semantic=semantic)
+
+    if args.out_dir:
+        Path(args.out_dir).mkdir(parents=True, exist_ok=True)
+        Path(args.out_dir, "plan.md").write_text(out["plan_md"], encoding="utf-8")
+        Path(args.out_dir, "spec.json").write_text(
+            json.dumps(out["spec"], indent=2), encoding="utf-8"
+        )
+        print(f"wrote {args.out_dir}/plan.md and {args.out_dir}/spec.json")
+    else:
+        print(out["plan_md"])
+        print("\n--- spec.json (derived) ---")
+        print(json.dumps(out["spec"], indent=2))
     return 0
 
 
