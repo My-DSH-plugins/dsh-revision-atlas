@@ -145,15 +145,36 @@ def _annotate_leaves(inv: dict, node: dict, semantic: "Optional[Dict[str, List[s
     return node
 
 
+def _anchor(node: dict) -> str:
+    """A compact source/citation anchor to render beside a node."""
+    if node.get("evidence"):
+        return f"[cited {node['evidence']['file']}:{node['evidence']['line']}]"
+    if node.get("file"):
+        if node.get("line") is not None:
+            return f"[src {node['file']}:{node['line']}]"
+        return f"[src {node['file']} — whole file]"
+    return ""
+
+
 def _render_md(root: dict, coverage: dict) -> str:
     lines: List[str] = []
 
     def walk(node: dict, depth: int) -> None:
         pad = "  " * max(depth - 1, 0)
+        anchor = _anchor(node)
         if node["kind"] in ("module", "section"):
-            lines.append("#" * node["rank"] + " " + node["title"])
+            entry = "#" * node["rank"] + " " + node["title"]
+            if anchor:
+                entry += "  " + anchor
+            lines.append(entry)
         else:
-            lines.append(f"{pad}- **{node['title']}** · kind: {node['kind']}")
+            label = node["title"]
+            if node["kind"] == "needs-review":
+                label = f"⚠ DECIDE — {label}"
+            entry = f"{pad}- **{label}** · kind: {node['kind']}"
+            if anchor:
+                entry += " · " + anchor
+            lines.append(entry)
             for bname, bnode in (node.get("branches") or {}).items():
                 lines.append(f"{pad}  - {bname}: `{bnode['file']}`")
             if node.get("canonical"):
@@ -176,7 +197,14 @@ def _render_md(root: dict, coverage: dict) -> str:
     walk(root, 1)
     cov = coverage
     head = [
-        f"# Plan — {root['title']} · status: proposed",
+        f"# Plan — {root['title']}",
+        "",
+        "> **status:** `proposed` — flip to `approved` after both gates pass.",
+        "",
+        "## How to review",
+        "",
+        "- **Gate 1 — structure:** every section and linked file appears below with the right `kind`; resolve any `⚠ DECIDE` item.",
+        "- **Gate 2 — leaf checklists:** every claim is grounded in the source (follow each leaf's `[src …]` anchor); nothing invented, nothing load-bearing dropped.",
         "",
         "## Coverage: "
         f"{cov['classified']} classified · {cov['ignored']} ignored · "

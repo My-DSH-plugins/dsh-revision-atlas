@@ -26,7 +26,7 @@ or higher rank; for a sidecar (`line` is `null`), the whole file.
 - Ground every claim in the source: each must trace to a paragraph or line. No
   invention, no outside knowledge, no editorializing.
 - 2–4 claims per leaf; prefer fewer, denser claims over many thin ones.
-- Do not copy the prose verbatim wholesale; do not drop a load-bearing idea.
+- Paraphrase, don't transcribe — each claim ≤ ~25 words and never a source sentence copied verbatim; do not drop a load-bearing idea.
 - A leaf with nothing worth claiming → an empty list (that is fine, not a gap).
 - Only ADD claims — never change the tree, the kinds, or the mechanical seed.
 

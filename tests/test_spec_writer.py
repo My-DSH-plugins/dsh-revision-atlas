@@ -74,6 +74,13 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("kind: debate-pair", out["plan_md"])
         self.assertIn("kind: framework-matrix", out["plan_md"])
 
+        # The plan is a review artifact: gates, approval status, source anchors.
+        self.assertIn("`proposed`", out["plan_md"])
+        self.assertIn("flip to `approved`", out["plan_md"])
+        self.assertIn("Gate 1 — structure", out["plan_md"])
+        self.assertIn("Gate 2 — leaf checklists", out["plan_md"])
+        self.assertIn("[src README.md:", out["plan_md"])
+
     def test_m5_flags_residue(self):
         out = build_structure(extract(M5))
         nodes = list(_all_nodes(out["root"]))
@@ -81,6 +88,7 @@ class TestStructurePlan(unittest.TestCase):
         self.assertEqual([n["file"] for n in nr], ["code/README.md"])
         self.assertEqual(out["coverage"]["needs_review"], 1)
         self.assertEqual(out["coverage"]["sections"], 9 + 4 + 6)
+        self.assertIn("DECIDE", out["plan_md"])
 
     def test_leaf_checklist_closure(self):
         # Every collapsible and every mermaid block lands in exactly one leaf's

@@ -15,6 +15,16 @@ from revision_atlas.spec_writer import build_structure
 M2 = "/Users/akshayprabhakant/github/GenAI_notes/Harness Engineering/modules/02-model-failure-science"
 
 M2_SEMANTIC = {
+    "M2 · Model Failure Science": [
+        "Module question: what does the model actually do wrong — and why — before designing anything around it?",
+        "Cross-cutting threads: failure modes · tradeoff ledger; domain spine: failure case studies across domains.",
+    ],
+    "The failure classes": [
+        "Nine classes, each with its mechanism, signature, and severity — the catalog drawn on for every design exercise.",
+    ],
+    "Contested boundaries": [
+        "Where adjacent classes are easy to confuse: 6-vs-4 (reasoning load vs instruction drift), 4-vs-5 (drift vs position bias), and a worked example of 'shorten the chain'.",
+    ],
     "Opening scene — the postmortem that wasn't": [
         "Ordering agent approved a 40% discount it had no authority to give; root cause read \"the model hallucinated the discount policy\".",
         "Real failure: it followed the most salient instruction (a customer message) that was allowed to outrank standing policy — nothing separated policy from data.",
