@@ -2,7 +2,7 @@
 
 - **Blocked by:** 0002
 - **Blocks:** 0005, 0006
-- **Status:** in progress — deterministic seed done; semantic drafting is the agentic half
+- **Status:** done
 
 ## Goal
 
@@ -37,3 +37,13 @@ the approved plan.
   each leaf's key claims/definitions — are drafted by the agent reading the
   source (the skill's runtime), then Gate 2 approves the combined list. This is
   where `needs-review` leaves like `code/README.md` get human-typed.
+
+## Done
+
+- `build_structure(inv, semantic=None)` merges agent-drafted claims (keyed by
+  leaf title) into each leaf's checklist, claims first then the deterministic
+  seed. Regression-tested.
+- **Demonstrated on M2**: `.scratch/revision-atlas/demo/generate_m2_plan.py`
+  holds the agentic `M2_SEMANTIC` draft (26 leaves, grounded in the source) and
+  writes `.scratch/revision-atlas/demo/m2-plan.md` — the full Gate-2 artifact:
+  `26 leaves · 26 with claims · 0 empty`.

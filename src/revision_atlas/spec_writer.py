@@ -128,14 +128,19 @@ def _checklist_seed(inv: dict, node: dict) -> list:
     return items
 
 
-def _annotate_leaves(inv: dict, node: dict) -> dict:
-    """Attach a `checklist` seed to every leaf node, in place."""
+def _annotate_leaves(inv: dict, node: dict, semantic: "Optional[Dict[str, List[str]]]" = None) -> dict:
+    """Attach a `checklist` to every leaf: agent claims + deterministic seed.
+
+    `semantic` maps a leaf's title to the claim strings the agent drafted from
+    the source (the agentic half; absent in the deterministic seed alone).
+    """
     for b in (node.get("branches") or {}).values():
-        _annotate_leaves(inv, b)
+        _annotate_leaves(inv, b, semantic)
     for c in node.get("children", []):
-        _annotate_leaves(inv, c)
+        _annotate_leaves(inv, c, semantic)
     if node["kind"] in LEAF_KINDS and not node.get("children"):
-        node["checklist"] = _checklist_seed(inv, node)
+        claims = [{"kind": "claim", "text": t} for t in (semantic or {}).get(node["title"], [])]
+        node["checklist"] = claims + _checklist_seed(inv, node)
     return node
 
 
@@ -157,7 +162,9 @@ def _render_md(root: dict, coverage: dict) -> str:
             if not node["checklist"]:
                 lines.append(f"{ipad}- (checklist: empty — semantic items pending)")
             for it in node["checklist"]:
-                if it["kind"] == "details":
+                if it["kind"] == "claim":
+                    lines.append(f"{ipad}- {it['text']}")
+                elif it["kind"] == "details":
                     label = it["summary"] or f"line {it['line']}"
                     lines.append(f"{ipad}- [details] {label}")
                 elif it["kind"] == "mermaid":
@@ -180,7 +187,7 @@ def _render_md(root: dict, coverage: dict) -> str:
     return "\n".join(head + lines)
 
 
-def build_structure(inv: dict) -> dict:
+def build_structure(inv: dict, semantic: "Optional[Dict[str, List[str]]]" = None) -> dict:
     readme = next(f for f in inv["files"] if f.get("kind") == "module")
     readme_headings = inv["headings"].get(readme["path"], [])
     root, line_to_node = _build_heading_tree(readme_headings, readme["path"])
@@ -269,7 +276,7 @@ def build_structure(inv: dict) -> dict:
              "file": f["path"], "line": None, "children": []}
         )
 
-    _annotate_leaves(inv, root)
+    _annotate_leaves(inv, root, semantic)
 
     def _leaf_stats(node, acc):
         for b in (node.get("branches") or {}).values():

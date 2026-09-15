@@ -100,6 +100,18 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("checklist", ri)
         self.assertGreater(len(ri["checklist"]), 0)
 
+    def test_semantic_merge(self):
+        out = build_structure(
+            extract(M2),
+            semantic={"1. Hallucination & confabulation": ["Fluent false output"]},
+        )
+        leaf = next(
+            n for n in _all_nodes(out["root"]) if n["title"] == "1. Hallucination & confabulation"
+        )
+        self.assertEqual(leaf["checklist"][0]["kind"], "claim")
+        self.assertEqual(leaf["checklist"][0]["text"], "Fluent false output")
+        self.assertIn("Fluent false output", out["plan_md"])
+
 
 if __name__ == "__main__":
     unittest.main()
