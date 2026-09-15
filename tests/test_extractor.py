@@ -3,12 +3,15 @@
 Run from the repo root with:
     PYTHONPATH=src python3 -m unittest discover -s tests -v
 """
+import contextlib
+import io
 import os
+import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
 
-from revision_atlas.extractor import IGNORED_DIRS, extract
+from revision_atlas.extractor import IGNORED_DIRS, extract, main
 
 M5 = Path(
     os.environ.get(
@@ -44,11 +47,14 @@ def _classified(inv):
 def _independent_classified(root):
     return {
         p.relative_to(root).as_posix()
-        for p in root.rglob("*.md")
-        if not any(part.lower() in IGNORED_DIRS for part in p.relative_to(root).parts)
+        for p in root.rglob("*")
+        if p.is_file()
+        and p.suffix.lower() == ".md"
+        and not any(part.lower() in IGNORED_DIRS for part in p.relative_to(root).parts)
     }
 
 
+@unittest.skipUnless(M5.is_dir() and M2.is_dir(), "course fixtures not present")
 class TestExtractor(unittest.TestCase):
     def test_m5_closure_counts_and_structure(self):
         inv = extract(M5)
@@ -90,6 +96,56 @@ class TestExtractor(unittest.TestCase):
         for root in (M5, M2):
             inv = extract(root)
             self.assertEqual(_classified(inv), _independent_classified(root))
+
+
+class TestExtractorBehavior(unittest.TestCase):
+    def _tmp_module(self, files):
+        d = tempfile.TemporaryDirectory()
+        root = Path(d.name)
+        for rel, content in files.items():
+            p = root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+        return d, root
+
+    def test_dangling_link_flagged_and_fails(self):
+        d, root = self._tmp_module(
+            {"README.md": "[present](present.md) and [gone](missing.md)\n", "present.md": "# p\n"}
+        )
+        try:
+            inv = extract(root)
+            self.assertEqual([x["target"] for x in inv["dangling_links"]], ["missing.md"])
+            self.assertEqual(inv["closure"]["dangling_links"], 1)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([str(root)]), 1)
+        finally:
+            d.cleanup()
+
+    def test_cross_module_link_not_dangling(self):
+        d, root = self._tmp_module({"README.md": "[m3](../03/README.md)\n"})
+        try:
+            inv = extract(root)
+            self.assertEqual(inv["dangling_links"], [])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([str(root)]), 0)
+        finally:
+            d.cleanup()
+
+    def test_ignore_reason_names_matched_segment(self):
+        d, root = self._tmp_module({"scratch/x.md": "# x\n"})
+        try:
+            inv = extract(root)
+            self.assertEqual(inv["files"][0]["reason"], "noise dir (scratch)")
+        finally:
+            d.cleanup()
+
+    def test_case_insensitive_md_extension(self):
+        d, root = self._tmp_module({"NOTES.MD": "# notes\n"})
+        try:
+            inv = extract(root)
+            self.assertIn("NOTES.MD", {f["path"] for f in inv["files"]})
+        finally:
+            d.cleanup()
 
 
 if __name__ == "__main__":

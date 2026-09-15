@@ -2,8 +2,12 @@
 
 Ticket 0001. No LLM: walks one module directory and emits, for every markdown
 file, its classification (classified / ignored / needs_review), its headings,
-relative .md links, mermaid fences and <details> blocks. The closure invariant:
-every .md is accounted for exactly once.
+relative .md links, mermaid fences and <details> blocks.
+
+Closure invariant (enforced, not merely reported):
+- every .md is accounted for exactly once (unaccounted fails the run);
+- every relative .md link that points inside the module tree resolves to a real
+  file (a dangling link fails the run).
 """
 from __future__ import annotations
 
@@ -36,8 +40,12 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 
-def _is_fence(stripped: str) -> "str | None":
-    """Return the fence info string if `stripped` opens/closes a code fence, else None."""
+def _fence_info(stripped: str) -> "str | None":
+    """Return a fence's info string if `stripped` opens/closes a code fence.
+
+    ``""`` is a bare (closing) fence; ``"mermaid"`` is an opening mermaid fence;
+    ``None`` means the line is not a fence.
+    """
     for opener in ("```", "~~~"):
         if stripped.startswith(opener):
             return stripped[len(opener):].strip()
@@ -60,7 +68,7 @@ def _parse_file(path: Path) -> Tuple[List[dict], List[dict], List[int], List[int
     with open(path, "r", encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
             stripped = line.strip()
-            fence = _is_fence(stripped)
+            fence = _fence_info(stripped)
             if fence is not None:
                 if in_fence:
                     if fence == "":
@@ -88,7 +96,12 @@ def _parse_file(path: Path) -> Tuple[List[dict], List[dict], List[int], List[int
 
 def extract(root: "str | Path") -> dict:
     root = Path(root)
-    md_files = sorted(p.relative_to(root) for p in root.rglob("*.md"))
+    rroot = root.resolve()
+    md_files = sorted(
+        p.relative_to(root)
+        for p in root.rglob("*")
+        if p.is_file() and p.suffix.lower() == ".md"
+    )
 
     files: List[dict] = []
     headings: Dict[str, List[dict]] = {}
@@ -98,9 +111,10 @@ def extract(root: "str | Path") -> dict:
 
     for rel in md_files:
         posix = rel.as_posix()
-        if any(part.lower() in IGNORED_DIRS for part in rel.parts):
+        matched = next((part for part in rel.parts if part.lower() in IGNORED_DIRS), None)
+        if matched is not None:
             files.append(
-                {"path": posix, "status": "ignored", "reason": f"noise dir ({rel.parts[0]})"}
+                {"path": posix, "status": "ignored", "reason": f"noise dir ({matched})"}
             )
             continue
         reason = "module README" if posix.lower() == "readme.md" else "sidecar"
@@ -111,14 +125,35 @@ def extract(root: "str | Path") -> dict:
         mermaid[posix] = m
         details[posix] = d
 
+    # Resolve relative .md links against the inventory. A link whose target sits
+    # inside the module tree but does not exist is dangling. Links that point
+    # outside the tree (cross-module references) are never "dangling".
+    dangling: List[dict] = []
+    for source, llist in links.items():
+        for l in llist:
+            tgt = l["target"].split("#", 1)[0].strip()
+            if not tgt:
+                continue
+            resolved = (root / tgt).resolve()
+            inside = False
+            try:
+                inside = resolved.is_relative_to(rroot)
+            except ValueError:
+                inside = False
+            if inside and not resolved.exists():
+                dangling.append({"source": source, "target": tgt, "line": l["line"]})
+
     closure = {
         "enumerated": len(files),
         "classified": sum(1 for f in files if f["status"] == "classified"),
         "ignored": sum(1 for f in files if f["status"] == "ignored"),
+        # Always 0 in 0001: relationship classification (and the residue that
+        # becomes `needs_review`) is owned by 0002.
         "needs_review": sum(1 for f in files if f["status"] == "needs_review"),
         "unaccounted": sum(
             1 for f in files if f["status"] not in ("classified", "ignored", "needs_review")
         ),
+        "dangling_links": len(dangling),
     }
 
     return {
@@ -128,6 +163,7 @@ def extract(root: "str | Path") -> dict:
         "links": links,
         "mermaid_blocks": mermaid,
         "details_blocks": details,
+        "dangling_links": dangling,
         "closure": closure,
     }
 
@@ -136,8 +172,10 @@ def main(argv: "List[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(description="Revision Atlas extractor (ticket 0001)")
     ap.add_argument("module_dir", help="path to a course-module directory")
     args = ap.parse_args(argv)
-    print(json.dumps(extract(args.module_dir), indent=2))
-    return 0
+    inv = extract(args.module_dir)
+    print(json.dumps(inv, indent=2))
+    c = inv["closure"]
+    return 0 if (c["unaccounted"] == 0 and c["dangling_links"] == 0) else 1
 
 
 if __name__ == "__main__":
