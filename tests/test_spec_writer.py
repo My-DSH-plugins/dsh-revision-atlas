@@ -112,6 +112,18 @@ class TestStructurePlan(unittest.TestCase):
         self.assertEqual(leaf["checklist"][0]["text"], "Fluent false output")
         self.assertIn("Fluent false output", out["plan_md"])
 
+    def test_section_intros_get_checklists(self):
+        # A section with children owns its intro range and gets a checklist, so
+        # its intro prose isn't silently dropped (regression from the cold test).
+        out = build_structure(extract(M2))
+        nodes = {n["title"]: n for n in _all_nodes(out["root"])}
+        for title in ("The failure classes", "Contested boundaries", "M2 · Model Failure Science"):
+            self.assertIn("checklist", nodes[title], title)
+        # Intro seed is mechanical-empty (no collapsibles/mermaid in the intro),
+        # but the key exists so the agent can fill it — and children's content is
+        # not double-counted (the closure test asserts that globally).
+        self.assertEqual(nodes["The failure classes"]["checklist"], [])
+
 
 class TestPlanWriterCLI(unittest.TestCase):
     def test_out_dir_and_semantic_file(self):

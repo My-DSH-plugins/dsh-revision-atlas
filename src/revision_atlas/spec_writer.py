@@ -86,29 +86,29 @@ def _coverage(inv: dict, root: dict) -> dict:
     }
 
 
-# A node that owns content directly (and thus gets a checklist), as opposed to a
-# composite (`debate-pair`, `framework-matrix`) whose branches/children own it.
+# A node that owns source text directly (and thus gets a checklist), as opposed
+# to a composite (`debate-pair`, `framework-matrix`) whose branches/children own
+# it. Heading nodes (`module`, `section`) own their intro range even when they
+# have children.
 LEAF_KINDS = frozenset(
-    {"section", "worked-example", "needs-review", "debate-for", "debate-against", "framework-domain"}
+    {"module", "section", "worked-example", "needs-review", "debate-for", "debate-against", "framework-domain"}
 )
 
 
 def _leaf_range(inv: dict, node: dict):
-    """Return (start, end) of the line range a leaf owns in its source file.
+    """Return (start, end) of the line range a node owns in its source file.
 
-    A README section leaf owns from its heading line to the next heading of equal
-    or higher rank; a sidecar leaf (no line) owns the whole file.
+    A heading node owns from its own line to the next heading of ANY rank — so a
+    section with children owns only its intro, a terminal section owns its full
+    body. A sidecar leaf (no line) owns the whole file.
     """
     if node.get("line") is None:
         return 1, float("inf")
-    rank = node["rank"]
     start = node["line"]
-    end = float("inf")
     for h in inv["headings"].get(node["file"], []):
-        if h["line"] > start and h["rank"] <= rank:
-            end = h["line"]
-            break
-    return start, end
+        if h["line"] > start:
+            return start, h["line"]
+    return start, float("inf")
 
 
 def _checklist_seed(inv: dict, node: dict) -> list:
@@ -139,7 +139,7 @@ def _annotate_leaves(inv: dict, node: dict, semantic: "Optional[Dict[str, List[s
         _annotate_leaves(inv, b, semantic)
     for c in node.get("children", []):
         _annotate_leaves(inv, c, semantic)
-    if node["kind"] in LEAF_KINDS and not node.get("children"):
+    if node["kind"] in LEAF_KINDS:
         claims = [{"kind": "claim", "text": t} for t in (semantic or {}).get(node["title"], [])]
         node["checklist"] = claims + _checklist_seed(inv, node)
     return node
