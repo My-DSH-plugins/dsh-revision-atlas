@@ -205,3 +205,41 @@ class TestVerifierCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBuildPipeline(unittest.TestCase):
+    """The one entry point: extract -> generate -> verify."""
+
+    def test_end_to_end_build(self):
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertTrue(rep.ok(), rep.render())
+            self.assertEqual(len(written), 2)                       # root + Section one
+            self.assertTrue((root / "mindmaps" / root.name / "plan.md").exists())
+            self.assertTrue((root / "mindmaps" / root.name / "spec.json").exists())
+            self.assertTrue((root / "mindmaps" / "assets" / "notebook.css").exists())
+
+    def test_build_merges_the_agent_passes(self):
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            spec, written, rep = build(
+                str(root), str(root / "mindmaps"),
+                semantic={"Section one": ["a bullet worth keeping"]},
+                recall={"Section one": {"recall": ["hooks"], "prompt": "q?", "reveal": "a."}},
+                critic={"Section one": [{"detail": "planted drift"}]},
+            )
+            self.assertTrue(rep.ok())                                # critic annotates only
+            self.assertTrue(any(f.check == "critic" for f in rep.needs_review))
+            # leaf-000 is the module ROOT; the recall lands on "Section one"
+            all_html = "".join(
+                p.read_text(encoding="utf-8")
+                for p in (root / "mindmaps" / root.name / "leaves").glob("*/notebook.html")
+            )
+            self.assertIn("hooks", all_html)
