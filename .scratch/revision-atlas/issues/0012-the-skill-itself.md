@@ -43,7 +43,9 @@ entry points, so an agent can drive the pipeline from a course module directory.
    `approved` after both gates pass", but nothing reads it; generation proceeds
    regardless. Decide and implement: does the skill *refuse* to generate below an
    approved plan (a real gate), or is approval a human convention?
-3. **The four agent passes are files, not steps.** `semantic-pass.md`,
+3. ~~**The recall pass has no reveal budget.**~~ **Done** — capped at 500 words in
+   `recall-pass.md`, in SPEC §8, and asserted by `_check_budgets` (0010).
+4. **The four agent passes are files, not steps.** `semantic-pass.md`,
    `recall-pass.md`, `mermaid-pass.md` and `verifier-critic.md` exist and are
    cold-tested, but the skill has to state when each runs, in what order, and what
    it does with a pass that comes back short.

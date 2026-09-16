@@ -118,7 +118,7 @@ defect this ticket exists for.
 - Chunking conserves every line, in order, exactly once (test).
 - 8 new tests; 73 green.
 
-## Still open — the reveal has no budget
+## Resolved — the reveal now has a budget (500 words)
 
 Nested paging makes the notebook *robust* to an unbounded reveal; it does not make
 the reveal *good*. SPEC §8 calls `reveal` "the compact structure the learner should
@@ -126,6 +126,9 @@ have reproduced", and `recall-pass.md` bounds `recall` at ≤60 words while leav
 `reveal` unbounded — this run produced up to 549 words, which is a 7-page nested
 answer where one page was wanted.
 
-`0012` (the skill) should carry the fix: give the recall pass a reveal budget so the
-pager is a safety net rather than the normal case, and keep the nested sheet as the
-guarantee that nothing is ever lost when a pass overshoots anyway.
+**Decided: ≤500 words.** Stated in `recall-pass.md` (with `recall`'s ≤60 beside it)
+and in SPEC §8's budgets, and **asserted** by `_check_budgets` as `needs-review` — a
+long reveal is faithful and merely longer than it should be, so it annotates rather
+than blocks, but it is visible instead of silent. The nested sheet stays as the
+guarantee that nothing is lost when a pass overshoots anyway: the budget makes one
+page the norm, the pager makes several pages survivable.

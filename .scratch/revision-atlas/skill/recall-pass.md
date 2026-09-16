@@ -26,6 +26,10 @@ For **every leaf** in `<SPEC>`, read its source and write three things:
    the signature, or the "how would you tell X from Y" that the leaf is about.
 3. **`reveal`** — the model answer: the compact structure the learner should have
    reproduced (the bullets/diagram skeleton the `recall` block maps onto).
+   **≤500 words.** It is the answer, not the chapter: past 500 the notebook has to
+   paginate it across several nested pages, which is the notebook coping with an
+   overshoot rather than the pass doing its job. A measured 549-word reveal became
+   a seven-page nested answer where one page was wanted.
 
 A leaf owns: for a README section, from its `line` to the next heading of equal
 or higher rank; for a sidecar (`line` is `null`), the whole file.
@@ -37,6 +41,8 @@ or higher rank; for a sidecar (`line` is `null`), the whole file.
 - Paraphrase, don't transcribe — no bullet is a source sentence copied verbatim;
   do not drop a load-bearing idea.
 - `recall` bullets are dense, not chatty: ≤ ~15 words each, 3–5 total.
+- `reveal` ≤500 words; `recall` ≤60. Overshooting a budget is reported as
+  `needs-review`, so it is visible rather than silent.
 - `prompt` targets the leaf's *hardest* idea — the one a learner most often gets
   wrong or fudges. `reveal` is the structure that answers it, not a full essay.
 - A leaf with nothing worth recalling → `recall: []`, `prompt: ""`, `reveal: ""`
