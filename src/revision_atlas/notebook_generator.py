@@ -9,6 +9,7 @@ referenced by relative URL from each notebook, so they're cached once per module
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html as _html
 import json
 from pathlib import Path
@@ -105,9 +106,24 @@ def _pages(node: dict) -> List[Tuple[str, str, str]]:
     return pages
 
 
+def _asset_version() -> str:
+    """Short content hash of the shared assets.
+
+    Appended to every asset URL so a regenerated notebook can never be served the
+    browser's cached copy of an older stylesheet or flip runtime — a bare
+    `assets/notebook.css` is cached indefinitely and makes a fix look like it
+    didn't land.
+    """
+    h = hashlib.sha256()
+    for src_name in sorted(SHARED_ASSETS):
+        h.update((_ASSETS / src_name).read_bytes())
+    return h.hexdigest()[:8]
+
+
 def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
     """Render one leaf to a self-contained flip-notebook HTML string."""
     title = _esc(node["title"])
+    ver = _asset_version()
     page_divs = []
     for density, extra, inner in _pages(node):
         cls = "page" + (f" {extra}" if extra else "")
@@ -121,8 +137,8 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>{title} — Revision Atlas notebook</title>
-<link rel="stylesheet" href="{assets_rel}/page-flip.css" />
-<link rel="stylesheet" href="{assets_rel}/notebook.css" />
+<link rel="stylesheet" href="{assets_rel}/page-flip.css?v={ver}" />
+<link rel="stylesheet" href="{assets_rel}/notebook.css?v={ver}" />
 </head>
 <body>
 <div class="stage">
@@ -132,7 +148,7 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
   <button class="turn turn-prev" id="prevZone" type="button" aria-label="Previous page"></button>
   <button class="turn turn-next" id="nextZone" type="button" aria-label="Next page"></button>
 </div>
-<script src="{assets_rel}/page-flip.browser.js"></script>
+<script src="{assets_rel}/page-flip.browser.js?v={ver}"></script>
 <script>
 (() => {{
   const el = document.getElementById('book');

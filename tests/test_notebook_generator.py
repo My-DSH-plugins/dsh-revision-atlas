@@ -70,8 +70,11 @@ class TestRenderNotebook(unittest.TestCase):
 
     def test_asset_prefix_used(self):
         html = render_notebook(_full_leaf(), assets_rel="../../assets")
-        self.assertIn('href="../../assets/page-flip.css"', html)
-        self.assertIn('src="../../assets/page-flip.browser.js"', html)
+        # assets carry a content hash so a regenerated notebook can't be served a
+        # stale cached stylesheet / flip runtime
+        self.assertIn('href="../../assets/page-flip.css?v=', html)
+        self.assertIn('href="../../assets/notebook.css?v=', html)
+        self.assertIn('src="../../assets/page-flip.browser.js?v=', html)
 
 
 class TestSharedAssets(unittest.TestCase):
