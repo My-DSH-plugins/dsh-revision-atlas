@@ -2,7 +2,8 @@
 
 - **Blocked by:** 0007, 0011 (both done)
 - **Blocks:** 0013
-- **Status:** OPEN — never ticketed until now; no code written
+- **Status:** in progress — the SKILL.md and the pass-rehydration command are done;
+  packaging (0013) and a first cold run remain
 
 ## Why this ticket is late, and why it matters
 

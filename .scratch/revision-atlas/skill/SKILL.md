@@ -93,16 +93,17 @@ When the build stops at exit 3:
 When the source moves, do not rebuild the module. The verifier's `freshness` findings
 name exactly which leaves are stale; those leaves are the task list.
 
-- For the **stale** leaves: re-run their passes in fresh subagents.
-- For the **unchanged** leaves: rehydrate their claims, recall and diagrams from the
-  existing `spec.json` — the pass outputs are already persisted there.
-- Merge, then rebuild. This re-enters the gates: a source change lapses Gate 2 by
-  design, so the user re-approves the *updated* plan. That is the point — the human
-  reviews what changed before anything is regenerated.
-
-*(The pipeline command that turns `spec.json` back into the pass-input JSONs is the
-one remaining piece of plumbing for this; until it lands, rehydrate by reading
-`spec.json` directly.)*
+- Rehydrate the pass inputs for every leaf:
+  ```
+  PYTHONPATH=src python3 -m revision_atlas.passes <module_dir> --mindmaps <out> --out <dir>
+  ```
+  This writes `semantic.json` / `recall.json` / `mermaid.json` — the unchanged
+  leaves carry over untouched, which is what makes the refresh incremental.
+- Re-run the passes in fresh subagents and fold only the **stale** leaves' entries
+  over the rehydrated files; the unchanged leaves stay as they were.
+- Rebuild. This re-enters the gates: a source change lapses Gate 2 by design, so the
+  user re-approves the *updated* plan — the human reviews what changed before
+  anything is regenerated.
 
 ## Never
 

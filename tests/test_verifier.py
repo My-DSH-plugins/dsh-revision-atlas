@@ -632,3 +632,45 @@ class TestHumanApproval(unittest.TestCase):
                     for f in rep.failures),
                 rep.render(),
             )
+
+
+class TestDumpPasses(unittest.TestCase):
+    """`--dump-passes` turns spec.json back into the pass-input JSONs (0012)."""
+
+    def test_the_pass_inputs_round_trip_through_the_tree(self):
+        import json
+
+        from revision_atlas.passes import dump_passes
+
+        passes_in = {
+            "semantic": {"section-one": ["a claim about the intro"]},
+            "recall": {"section-one": {"recall": ["a hook"], "prompt": "why?",
+                                       "reveal": "- because."}},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root, **passes_in)
+            dumped_dir = root / "dumped"
+            dump_passes(str(root), str(out), str(dumped_dir))
+
+            got = {
+                name: json.loads((dumped_dir / f"{name}.json").read_text(encoding="utf-8"))
+                for name in passes_in
+            }
+            self.assertEqual(got["semantic"], passes_in["semantic"])
+            self.assertEqual(got["recall"], passes_in["recall"])
+
+    def test_mechanical_seeds_are_not_rehydrated(self):
+        import json
+
+        from revision_atlas.passes import dump_passes
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root)
+            dumped_dir = root / "dumped"
+            dump_passes(str(root), str(out), str(dumped_dir))
+            semantic = json.loads((dumped_dir / "semantic.json").read_text(encoding="utf-8"))
+            # the collapsible is a deterministic seed, not a claim — it must not leak
+            # into the claims file, or a rebuild would double-count it
+            self.assertEqual(semantic, {})
