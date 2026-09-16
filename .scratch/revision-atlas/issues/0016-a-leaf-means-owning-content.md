@@ -43,3 +43,16 @@ excluded for being a root — it is excluded for being empty.**
 - Two regression tests: a root owning only its heading has an empty checklist and is
   not a leaf; a root whose intro a pass compacted into claims is one.
 - 76 tests green.
+
+## And the check that was missing
+
+Every one of the three relevant checks passed on that empty artifact: `artifact`
+asked whether a notebook exists (it did), `coverage` asked whether the mechanical
+items are present (there were none to miss), `links` asked whether the link
+resolves (it did). **Nothing asked whether the artifact had any content in it.**
+
+`_check_artifacts` now also fails a leaf whose notebook has only its covers. A leaf
+owns content by definition, so covers-only means the leaf set and the artifacts
+disagree — a failure, not a curiosity. This is the belt to `owns_content`'s braces:
+the predicate stops the empty leaf being created, and the check stops it coming
+back unnoticed if the predicate is ever weakened.

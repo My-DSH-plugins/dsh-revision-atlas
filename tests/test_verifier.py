@@ -403,3 +403,29 @@ def _all_nodes(node):
         yield from _all_nodes(b)
     for c in node.get("children", []):
         yield from _all_nodes(c)
+
+
+class TestArtifactMustHaveContent(unittest.TestCase):
+    def test_a_covers_only_notebook_is_a_failure(self):
+        """Existence is not content (0016). This is the check that was missing."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root)
+            module_out = out / root.name
+            # a leaf's notebook, stripped to its covers
+            leaf_dir = module_out / "leaves" / "section-one"
+            nb = leaf_dir / "notebook.html"
+            nb.write_text(
+                '<!doctype html><html><body>'
+                '<div class="page page-cover" data-density="hard">front</div>'
+                '<div class="page page-cover" data-density="hard">back</div>'
+                '</body></html>',
+                encoding="utf-8",
+            )
+            rep = verify(inv, spec, str(out))
+            self.assertFalse(rep.ok())
+            self.assertTrue(
+                any(f.check == "artifact" and "no content pages" in f.detail
+                    for f in rep.failures),
+                rep.render(),
+            )

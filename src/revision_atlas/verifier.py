@@ -201,6 +201,23 @@ def _check_artifacts(module_dir: Path, leaves: List[dict], rep: Report) -> None:
     rep.stats["artifacts"] = sum(
         1 for leaf in leaves if _leaf_artifact(module_dir, leaf).exists()
     )
+    # An artifact that EXISTS is not an artifact that says anything. Every earlier
+    # version of this check stopped at existence, which is how a contentless module
+    # root shipped a notebook of two covers and nothing between: coverage had no
+    # items to miss, the link resolved, the file was there. A leaf owns content by
+    # definition (`owns_content`), so a notebook with only its covers means the two
+    # disagree — which is a failure, not a curiosity.
+    for leaf in leaves:
+        p = _leaf_artifact(module_dir, leaf)
+        if not p.exists():
+            continue
+        markup = p.read_text(encoding="utf-8")
+        if not re.search(r'<div class="page(?! page-cover)', markup):
+            rep.findings.append(Finding(
+                "failure", "artifact", leaf["title"],
+                "its notebook has no content pages — only covers. A leaf is a node "
+                "that owns content, so this one should not have a notebook at all",
+            ))
 
 
 def _check_coverage(module_dir: Path, leaves: List[dict], rep: Report) -> None:
