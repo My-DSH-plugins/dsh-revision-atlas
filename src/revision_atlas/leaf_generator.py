@@ -2,10 +2,11 @@
 
 Adds to every leaf the artifact fields the agent pass will later fill:
 
-  - `diagram` — the content-driven kind, decided deterministically where the
-    rule is mechanical: a source mermaid block -> `mermaid`; a `needs-review`
-    residue -> `none`; otherwise -> `handdrawn` (the default the agent may
-    override with a Gate-2-gated proposal).
+  - `diagrams` — a list of content-driven diagram slots, decided
+    deterministically where the rule is mechanical: each source mermaid block ->
+    a `mermaid` entry; a `needs-review` residue -> `[]`; otherwise -> one
+    `handdrawn` entry (the default the agent may override with a Gate-2-gated
+    proposal). A leaf may hold an array of diagrams.
   - `source` — the raw bullet lines from the leaf's source range (the collapsed
     audit surface the learner diffs against).
 
@@ -20,19 +21,24 @@ from typing import List
 from .spec_writer import leaf_range
 
 
-def _assign_diagram(inv: dict, node: dict) -> dict:
+def _assign_diagrams(inv: dict, node: dict) -> list:
     if node["kind"] == "needs-review":
-        return {"kind": "none", "justification": "residue — type it first"}
+        return []
     start, end = leaf_range(inv, node)
     file = node["file"]
-    for mline in inv["mermaid_blocks"].get(file, []):
-        if start <= mline < end:
-            return {
+    mermaid_lines = [
+        mline for mline in inv["mermaid_blocks"].get(file, []) if start <= mline < end
+    ]
+    if mermaid_lines:
+        return [
+            {
                 "kind": "mermaid",
                 "justification": f"source mermaid block (line {mline})",
                 "mmd_line": mline,
             }
-    return {"kind": "handdrawn", "justification": "default — agent may override"}
+            for mline in mermaid_lines
+        ]
+    return [{"kind": "handdrawn", "justification": "default — agent may override"}]
 
 
 def _source_bullets(inv: dict, node: dict) -> List[str]:
@@ -50,12 +56,12 @@ def _source_bullets(inv: dict, node: dict) -> List[str]:
 
 
 def annotate_artifacts(inv: dict, node: dict) -> dict:
-    """Add `diagram` and `source` to every leaf, in place."""
+    """Add `diagrams` and `source` to every leaf, in place."""
     for b in (node.get("branches") or {}).values():
         annotate_artifacts(inv, b)
     for c in node.get("children", []):
         annotate_artifacts(inv, c)
     if "checklist" in node:
-        node["diagram"] = _assign_diagram(inv, node)
+        node["diagrams"] = _assign_diagrams(inv, node)
         node["source"] = _source_bullets(inv, node)
     return node

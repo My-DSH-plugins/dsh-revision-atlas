@@ -100,10 +100,10 @@ leaf:
   prompt: "…"             # self-test question (agent-generated, stored, reviewable)
   recall: ["hook", "hook"]  # 3-5 bullets, <=60 words
   reveal: "…"             # answer/structure shown on reveal
-  diagram:                # ONE diagram slot; kind chosen by content (§8)
-    kind: handdrawn       # handdrawn | mermaid | none
-    art: "m2-c1.svg"      # the drawing (hand-drawn, or rendered mermaid)
-    src: null             # .mmd source, only when kind == mermaid
+  diagrams:               # a list — a leaf may hold an array of diagrams (§8)
+    - kind: handdrawn     # handdrawn | mermaid
+      art: "m2-c1.svg"    # the drawing (hand-drawn, or rendered mermaid)
+      src: null           # .mmd source, only when kind == mermaid
   notebook: "leaves/m2-c1/notebook.html"
   source: "…"             # collapsed audit bullets
   status: draft | needs-review | verified
@@ -171,8 +171,8 @@ leaf:
 ## 8. Leaf generation contract
 
 - **Budgets**: recall block 3–5 bullets ≤60 words; notebook pages by checklist
-  size (§9); exactly **one diagram slot per leaf** — never two drawings of the
-  same structure.
+  size (§9); a leaf holds a **list of diagrams** — never two drawings of the
+  same structure, but an array when the leaf legitimately has several.
 - **Diagram — content-driven, not a blanket rule**:
   - default `kind: handdrawn` — a hand-drawn flowchart/sketch in the notebook's
     visual language (memory + coherent look);
@@ -181,7 +181,7 @@ leaf:
     procedure / state machine / multi-branch sequence whose exact branching
     matters. Storage: `.mmd` source (diffable) rendered to SVG at build time
     (adr/0002);
-  - `kind: none` for leaves with nothing structural worth drawing.
+  - an empty `diagrams: []` for leaves with nothing structural worth drawing.
   - v1: a diagram's exact branching is **human-reviewed**, not machine-checked;
     the verifier asserts label presence only.
 - **Hand-drawn art**: SVG with real `<text>` labels — never text→paths, because

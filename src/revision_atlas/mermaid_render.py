@@ -131,29 +131,31 @@ def render_mermaid_svgs(mmds: List[str]) -> List[str]:
 
 
 def render_leaf_mermaids(inv: dict, root: dict) -> dict:
-    """Render every mermaid leaf's source block to SVG; attach `diagram["svg"]`."""
-    leaves: List[dict] = []
+    """Render every mermaid diagram's source block to SVG; attach `svg` to each."""
+    entries: "List[tuple]" = []
 
     def walk(node: dict) -> None:
         for b in (node.get("branches") or {}).values():
             walk(b)
         for c in node.get("children", []):
             walk(c)
-        if "checklist" in node and node.get("diagram", {}).get("kind") == "mermaid":
-            leaves.append(node)
+        if "checklist" in node:
+            for d in node.get("diagrams", []):
+                if d.get("kind") == "mermaid":
+                    entries.append((node, d))
 
     walk(root)
-    if not leaves:
+    if not entries:
         return root
 
     sources = [
-        extract_mermaid_source(Path(inv["root"]) / leaf["file"], leaf["diagram"]["mmd_line"])
-        for leaf in leaves
+        extract_mermaid_source(Path(inv["root"]) / leaf["file"], d["mmd_line"])
+        for leaf, d in entries
     ]
     svgs = render_mermaid_svgs(sources)
-    for leaf, svg in zip(leaves, svgs):
-        leaf["diagram"]["svg"] = svg
-        leaf["diagram"]["mermaid"] = MERMAID_VERSION
+    for (leaf, d), svg in zip(entries, svgs):
+        d["svg"] = svg
+        d["mermaid"] = MERMAID_VERSION
     return root
 
 

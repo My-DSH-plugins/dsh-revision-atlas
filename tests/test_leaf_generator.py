@@ -36,32 +36,50 @@ def _annotated(root_path):
 
 @unittest.skipUnless(M2.is_dir() and M5.is_dir(), "course fixtures not present")
 class TestLeafGenerator(unittest.TestCase):
-    def test_every_leaf_has_diagram_and_source(self):
+    def test_every_leaf_has_diagrams_and_source(self):
         _, tree = _annotated(M2)
         leaves = [n for n in _leaves(tree) if "checklist" in n]
         self.assertGreater(len(leaves), 0)
         for n in leaves:
-            self.assertIn("diagram", n)
+            self.assertIn("diagrams", n)
             self.assertIn("source", n)
 
     def test_m2_defaults_to_handdrawn(self):
-        # M2 has no mermaid blocks and no residue -> every leaf is handdrawn.
+        # M2 has no mermaid blocks and no residue -> one handdrawn slot per leaf.
         _, tree = _annotated(M2)
         leaves = [n for n in _leaves(tree) if "checklist" in n]
-        self.assertEqual({n["diagram"]["kind"] for n in leaves}, {"handdrawn"})
+        for n in leaves:
+            self.assertEqual([d["kind"] for d in n["diagrams"]], ["handdrawn"])
 
     def test_m5_mermaid_residue_and_default(self):
         _, tree = _annotated(M5)
         leaves = {n["title"]: n for n in _leaves(tree) if "checklist" in n}
-        # source mermaid block in range -> mermaid
+        # source mermaid block -> mermaid
         self.assertEqual(
-            leaves["Quality gates: validation in the pipeline"]["diagram"]["kind"], "mermaid"
+            [d["kind"] for d in leaves["Quality gates: validation in the pipeline"]["diagrams"]],
+            ["mermaid"],
         )
-        # needs-review residue -> none
-        self.assertEqual(leaves["code/README.md"]["diagram"]["kind"], "none")
+        # needs-review residue -> no diagrams
+        self.assertEqual(leaves["code/README.md"]["diagrams"], [])
         # no mermaid in range -> handdrawn default
         self.assertEqual(
-            leaves["The transaction feed that changed silently"]["diagram"]["kind"], "handdrawn"
+            [d["kind"] for d in leaves["The transaction feed that changed silently"]["diagrams"]],
+            ["handdrawn"],
+        )
+
+    def test_m5_array_of_mermaid_diagrams(self):
+        # the second "Deriving the baseline and thresholds." (H4 at line 767)
+        # holds four distinct mermaid blocks -> an array of four diagrams.
+        _, tree = _annotated(M5)
+        leaves = [n for n in _leaves(tree) if "checklist" in n]
+        node = next(
+            n
+            for n in leaves
+            if n["title"] == "Deriving the baseline and thresholds." and n["line"] == 767
+        )
+        self.assertEqual(
+            [d["kind"] for d in node["diagrams"]],
+            ["mermaid", "mermaid", "mermaid", "mermaid"],
         )
 
     def test_source_bullets_extracted(self):
