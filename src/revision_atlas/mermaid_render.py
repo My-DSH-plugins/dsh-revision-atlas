@@ -130,8 +130,19 @@ def render_mermaid_svgs(mmds: List[str]) -> List[str]:
     return svgs
 
 
+def diagram_source(inv: dict, leaf: dict, d: dict) -> str:
+    """Return the .mmd source for one diagram entry.
+
+    Agent-authored diagrams carry their source inline (`d["mmd"]`, adr/0005);
+    source-authored ones reference a ```mermaid block via `d["mmd_line"]`.
+    """
+    if "mmd" in d:
+        return d["mmd"]
+    return extract_mermaid_source(Path(inv["root"]) / leaf["file"], d["mmd_line"])
+
+
 def render_leaf_mermaids(inv: dict, root: dict) -> dict:
-    """Render every mermaid diagram's source block to SVG; attach `svg` to each."""
+    """Render every mermaid diagram's source to SVG; attach `svg` to each."""
     entries: "List[tuple]" = []
 
     def walk(node: dict) -> None:
@@ -148,10 +159,7 @@ def render_leaf_mermaids(inv: dict, root: dict) -> dict:
     if not entries:
         return root
 
-    sources = [
-        extract_mermaid_source(Path(inv["root"]) / leaf["file"], d["mmd_line"])
-        for leaf, d in entries
-    ]
+    sources = [diagram_source(inv, leaf, d) for leaf, d in entries]
     svgs = render_mermaid_svgs(sources)
     for (leaf, d), svg in zip(entries, svgs):
         d["svg"] = svg

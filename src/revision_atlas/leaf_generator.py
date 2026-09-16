@@ -30,16 +30,20 @@ def _assign_diagrams(inv: dict, node: dict) -> list:
     mermaid_lines = [
         mline for mline in inv["mermaid_blocks"].get(file, []) if start <= mline < end
     ]
-    if mermaid_lines:
-        return [
-            {
-                "kind": "mermaid",
-                "justification": f"source mermaid block (line {mline})",
-                "mmd_line": mline,
-            }
-            for mline in mermaid_lines
-        ]
-    return []
+    diagrams = [
+        {
+            "kind": "mermaid",
+            "justification": f"source mermaid block (line {mline})",
+            "mmd_line": mline,
+        }
+        for mline in mermaid_lines
+    ]
+    # agent-authored mermaid (adr/0005), attached by spec_writer's --mermaid pass.
+    for mmd in node.get("mermaid", []):
+        diagrams.append(
+            {"kind": "mermaid", "justification": "agent-authored (Gate-2)", "mmd": mmd}
+        )
+    return diagrams
 
 
 def _source_bullets(inv: dict, node: dict) -> List[str]:

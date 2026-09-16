@@ -134,19 +134,21 @@ def _annotate_leaves(
     node: dict,
     semantic: "Optional[Dict[str, List[str]]]" = None,
     recall: "Optional[Dict[str, dict]]" = None,
+    mermaid: "Optional[Dict[str, List[str]]]" = None,
 ) -> dict:
     """Attach a `checklist` to every leaf: agent claims + deterministic seed.
 
     `semantic` maps a leaf's title to the claim strings the agent drafted from
     the source (the agentic half; absent in the deterministic seed alone).
     `recall` maps a leaf's title to `{recall, prompt, reveal}` — the self-test
-    agent pass (ticket 0005), folded in here so the plan.md review surface shows
-    it alongside the checklist it must survive.
+    agent pass. `mermaid` maps a leaf's title to the agent-authored `.mmd`
+    strings (ticket 0005, adr/0005). All three fold into the plan.md review
+    surface alongside the checklist they must survive.
     """
     for b in (node.get("branches") or {}).values():
-        _annotate_leaves(inv, b, semantic, recall)
+        _annotate_leaves(inv, b, semantic, recall, mermaid)
     for c in node.get("children", []):
-        _annotate_leaves(inv, c, semantic, recall)
+        _annotate_leaves(inv, c, semantic, recall, mermaid)
     if node["kind"] in LEAF_KINDS:
         claims = [{"kind": "claim", "text": t} for t in (semantic or {}).get(node["title"], [])]
         node["checklist"] = claims + _checklist_seed(inv, node)
@@ -155,6 +157,9 @@ def _annotate_leaves(
             node["recall"] = rc.get("recall", [])
             node["prompt"] = rc.get("prompt", "")
             node["reveal"] = rc.get("reveal", "")
+        mm = (mermaid or {}).get(node["title"], [])
+        if mm:
+            node["mermaid"] = mm
     return node
 
 
@@ -212,6 +217,12 @@ def _render_md(root: dict, coverage: dict) -> str:
             lines.append(f"{ipad}prompt: {node['prompt']}")
         if node.get("reveal"):
             lines.append(f"{ipad}reveal: {node['reveal']}")
+        for mm in node.get("mermaid", []):
+            lines.append(f"{ipad}[diagram] mermaid (agent-authored):")
+            lines.append(f"{ipad}  ```mermaid")
+            for mline in mm.strip().splitlines():
+                lines.append(f"{ipad}  {mline}")
+            lines.append(f"{ipad}  ```")
         for child in node.get("children", []):
             walk(child, depth + 1)
 
@@ -241,6 +252,7 @@ def build_structure(
     inv: dict,
     semantic: "Optional[Dict[str, List[str]]]" = None,
     recall: "Optional[Dict[str, dict]]" = None,
+    mermaid: "Optional[Dict[str, List[str]]]" = None,
 ) -> dict:
     readme = next(f for f in inv["files"] if f.get("kind") == "module")
     readme_headings = inv["headings"].get(readme["path"], [])
@@ -330,7 +342,7 @@ def build_structure(
              "file": f["path"], "line": None, "children": []}
         )
 
-    _annotate_leaves(inv, root, semantic, recall)
+    _annotate_leaves(inv, root, semantic, recall, mermaid)
 
     def _leaf_stats(node, acc):
         for b in (node.get("branches") or {}).values():
@@ -370,6 +382,10 @@ def main(argv: "List[str] | None" = None) -> int:
         help="JSON file mapping leaf title -> {recall, prompt, reveal} (self-test pass)",
     )
     ap.add_argument(
+        "--mermaid",
+        help="JSON file mapping leaf title -> [mermaid .mmd strings] (diagram pass)",
+    )
+    ap.add_argument(
         "--out-dir",
         help="write plan.md + spec.json here (default: print both to stdout)",
     )
@@ -384,7 +400,11 @@ def main(argv: "List[str] | None" = None) -> int:
     if args.recall:
         with open(args.recall, encoding="utf-8") as f:
             recall = json.load(f)
-    out = build_structure(inv, semantic=semantic, recall=recall)
+    mermaid = None
+    if args.mermaid:
+        with open(args.mermaid, encoding="utf-8") as f:
+            mermaid = json.load(f)
+    out = build_structure(inv, semantic=semantic, recall=recall, mermaid=mermaid)
 
     if args.out_dir:
         Path(args.out_dir).mkdir(parents=True, exist_ok=True)

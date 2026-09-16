@@ -143,6 +143,21 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("prompt: Why does a fluent wrong answer slip past review?", out["plan_md"])
         self.assertIn("reveal: It optimizes plausibility, not truth.", out["plan_md"])
 
+    def test_mermaid_merge(self):
+        mmd = "flowchart TD\n  A[Plausibility] --> B[Wrong]"
+        out = build_structure(
+            extract(M2),
+            mermaid={"1. Hallucination & confabulation": [mmd]},
+        )
+        leaf = next(
+            n for n in _all_nodes(out["root"]) if n["title"] == "1. Hallucination & confabulation"
+        )
+        self.assertEqual(leaf["mermaid"], [mmd])
+        # reviewable in plan.md (Gate 2): a fenced mermaid block
+        self.assertIn("[diagram] mermaid (agent-authored)", out["plan_md"])
+        self.assertIn("```mermaid", out["plan_md"])
+        self.assertIn("A[Plausibility] --> B[Wrong]", out["plan_md"])
+
     def test_section_intros_get_checklists(self):
         # A section with children owns its intro range and gets a checklist, so
         # its intro prose isn't silently dropped (regression from the cold test).

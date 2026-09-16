@@ -2,7 +2,7 @@
 
 - **Blocked by:** 0003
 - **Blocks:** 0006, 0007
-- **Status:** in progress — recall/prompt/reveal pass + renderer upgrade done; agent-authored mermaid + pan/zoom remain
+- **Status:** in progress — deterministic skeleton + mermaid render + recall/prompt/reveal + agent-authored mermaid + renderer upgrade done; pan/zoom (0006) remains
 
 ## Goal
 
@@ -35,6 +35,11 @@ was removed), the `prompt`/`reveal`, and the collapsed source audit bullets.
   every mermaid entry to SVG; M5 smoke yields 6 SVGs.
 - **Recall / prompt / reveal pass** — instruction `recall-pass.md`; `spec_writer
   --recall` merges recall/prompt/reveal and renders them in `plan.md`.
+- **Agent-authored mermaid pass** — instruction `mermaid-pass.md`; `spec_writer
+  --mermaid` merges `.mmd` strings and renders them as fenced blocks in `plan.md`
+  (Gate-2). `leaf_generator` appends them to `diagrams`; `mermaid_render` renders
+  them via the `mmd` (direct source) path alongside source `mmd_line` blocks.
+  Smoke: a `flowchart` and a `mindmap` both render to SVG.
 - **Renderer upgrade** — `render_map` shows the leaf artifact: recall bullets,
   mermaid SVG inlined as base64 data-URI (image-only node), self-test
   (prompt + collapsed reveal), collapsed source audit. M5 map self-contained, 6
@@ -42,10 +47,6 @@ was removed), the `prompt`/`reveal`, and the collapsed source audit bullets.
 
 ## Remaining
 
-- **Agent-authored mermaid pass** — the instruction + merge for the agent to write
-  a `.mmd` diagram (`flowchart`/`mindmap`) for structure-bearing leaves, Gate-2-gated,
-  stored in `plan.md` (like recall/prompt/reveal). This replaces the removed
-  hand-drawn "diagram content pass".
 - **Pan/zoom wiring** — the notebook (0006) adds a small pan/zoom script over the
   static mermaid SVG; the map's `<img>` path already shows the diagram.
 - **Size note**: inlining source audit + mermaid in the Layer-1 map pushes M5 to

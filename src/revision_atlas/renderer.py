@@ -190,6 +190,7 @@ def main(argv: "List[str] | None" = None) -> int:
     ap.add_argument("module_dir")
     ap.add_argument("--semantic", help="JSON file mapping leaf title -> claims (agent pass)")
     ap.add_argument("--recall", help="JSON file mapping leaf title -> {recall,prompt,reveal} (self-test pass)")
+    ap.add_argument("--mermaid", help="JSON file mapping leaf title -> [mermaid .mmd strings] (diagram pass)")
     ap.add_argument("--out-dir", default=".", help="write index.html here")
     args = ap.parse_args(argv)
 
@@ -202,7 +203,11 @@ def main(argv: "List[str] | None" = None) -> int:
     if args.recall:
         with open(args.recall, encoding="utf-8") as f:
             recall = json.load(f)
-    spec = build_structure(inv, semantic=semantic, recall=recall)["spec"]
+    mermaid = None
+    if args.mermaid:
+        with open(args.mermaid, encoding="utf-8") as f:
+            mermaid = json.load(f)
+    spec = build_structure(inv, semantic=semantic, recall=recall, mermaid=mermaid)["spec"]
     # Leaf artifacts (0005): diagram slots + source bullets, then mermaid SVGs.
     annotate_artifacts(inv, spec["root"])
     render_leaf_mermaids(inv, spec["root"])

@@ -82,6 +82,19 @@ class TestLeafGenerator(unittest.TestCase):
             ["mermaid", "mermaid", "mermaid", "mermaid"],
         )
 
+    def test_agent_authored_mermaid_appended(self):
+        inv = extract(M2)
+        spec = build_structure(
+            inv, mermaid={"1. Hallucination & confabulation": ["flowchart TD\n  A --> B"]}
+        )["spec"]
+        tree = annotate_artifacts(inv, spec["root"])
+        leaf = next(
+            n for n in _leaves(tree) if n["title"] == "1. Hallucination & confabulation"
+        )
+        self.assertEqual([d["kind"] for d in leaf["diagrams"]], ["mermaid"])
+        self.assertEqual(leaf["diagrams"][0]["mmd"], "flowchart TD\n  A --> B")
+        self.assertEqual(leaf["diagrams"][0]["justification"], "agent-authored (Gate-2)")
+
     def test_source_bullets_extracted(self):
         _, tree = _annotated(M2)
         leaves = [n for n in _leaves(tree) if "checklist" in n]
