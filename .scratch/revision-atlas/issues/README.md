@@ -15,6 +15,10 @@ Tracer-bullet tickets, worked blockers-first (extractor → everything else).
 | [0009](0009-build-writes-the-map.md) | `build` writes the map (§13) | 0004, 0006 | — |
 | [0010](0010-reveal-clips-on-the-page.md) | A long reveal is clipped by the page | 0006, recall pass | — |
 | [0011](0011-the-map-reaches-the-notebooks.md) | The map reaches the notebooks (and resolves) | 0004, 0006, 0008 | — |
+| [0012](0012-the-skill-itself.md) | The skill itself (router + entry points) | 0007, 0011 | 0013 |
+| [0013](0013-package-it-as-a-plugin.md) | Package it as a plugin (DSH, Claude Code) | 0012 | — |
+| [0014](0014-pan-zoom-on-the-diagram-page.md) | Pan/zoom on the diagram page | 0006 | — |
+| [0015](0015-coverage-false-miss-on-short-labels.md) | Coverage false-misses a short-labelled collapsible | — | — |
 
 Open decisions that gate a specific ticket are noted in that ticket's file. The
 two that gate later work: **flip implementation** (0006) and the **diagram-kind

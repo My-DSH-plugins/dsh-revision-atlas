@@ -172,6 +172,20 @@ def _pages(node: dict) -> List[Tuple[str, str, str]]:
         for i, chunk in enumerate(chunks):
             title = "Source audit" if i == 0 else f"Source audit (cont. {i + 1}/{len(chunks)})"
             pages.append(("soft", "", _source_html(chunk, title)))
+    # A real book ends on a paired spread. StPageFlip's `createSpread()` shows the
+    # front cover alone and then pairs from index 1 — (1,2), (3,4), … — so the back
+    # cover (index N+1, where N is the content count) only shares a spread when N is
+    # ODD, and then it shares it with the last content page.
+    #
+    # With an even N the back cover falls out as a lone hard page and the source
+    # audit faces nothing. One blank leaf fixes the parity — and it goes FIRST, as
+    # the flyleaf a real book has inside the front cover, NOT last: appended at the
+    # end it would take the back cover's partner slot and the blank leaf, not the
+    # audit, would be the page facing it. (Verified against the engine: 7 pages →
+    # [[0], [1,2], [3,4], [5,6]].) A leaf with no content gets no flyleaf.
+    content = len(pages) - 1
+    if content and content % 2 == 0:
+        pages.insert(1, ("soft", "", ""))
     pages.append(("hard", "page-cover", _back_cover_html(node)))
     return pages
 

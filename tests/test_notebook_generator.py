@@ -48,6 +48,27 @@ class TestPages(unittest.TestCase):
         self.assertEqual(len(pages), 2)                      # front + back cover
         self.assertEqual([d for d, _, _ in pages], ["hard", "hard"])
 
+    def test_content_pages_are_odd_so_the_last_one_faces_the_back_cover(self):
+        # StPageFlip pairs from index 1 after the lone front cover, so the back
+        # cover only shares a spread when the content count is ODD — and then it
+        # shares it with the LAST content page, which must therefore stay the
+        # source audit. The filler is a flyleaf at the front, never a tail page.
+        pages = _pages(_full_leaf())
+        content = pages[1:-1]
+        self.assertEqual(len(content) % 2, 1, [c for _, c, _ in pages])
+        self.assertEqual(content[0][2], "", "the flyleaf leads the content")
+        self.assertIn("Source audit", content[-1][2])       # ...and the audit closes it
+        self.assertEqual([d for d, _, _ in content], ["soft"] * len(content))
+
+    def test_an_odd_content_leaf_gets_no_flyleaf(self):
+        leaf = _full_leaf()
+        # drop one content block (the source audit) so the count is already odd
+        leaf = {k: v for k, v in leaf.items() if k != "source"}
+        pages = _pages(leaf)
+        content = pages[1:-1]
+        self.assertEqual(len(content) % 2, 1)
+        self.assertNotEqual(content[0][2], "", "no flyleaf when parity is already right")
+
 
 class TestRenderNotebook(unittest.TestCase):
     def test_self_contained_flip(self):

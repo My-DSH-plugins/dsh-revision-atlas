@@ -2,7 +2,9 @@
 
 - **Blocked by:** 0004, 0005, 0006
 - **Blocks:** —
-- **Status:** done — deterministic axes + report + critic pass; critic cold-test pending
+- **Status:** done — deterministic axes + report + critic pass, critic cold-tested against a
+  planted drift; grounding rule superseded (structural, not similarity); `links` axis added in
+  [0011](0011-the-map-reaches-the-notebooks.md)
 
 ## Goal
 
