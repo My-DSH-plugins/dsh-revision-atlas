@@ -175,36 +175,6 @@ class TestStructurePlan(unittest.TestCase):
         self.assertNotEqual(name, leaf_dir_id({"id": "x" * 199}))
         self.assertTrue(name.startswith("x" * 71))   # still recognisable
 
-    def test_duplicate_title_leaves_get_distinct_keys(self):
-        # M5 has two leaves titled "Deriving the baseline and thresholds."
-        # (README lines 157 volume-based and 767 per-column). The old title-keyed
-        # lookup collapsed them into one JSON key, silently giving each leaf the
-        # other's claims. They must get distinct ids — and distinct claims when a
-        # pass keys by id (ticket 0008).
-        out = build_structure(extract(M5))
-        leaves = [
-            n
-            for n in _all_nodes(out["root"])
-            if n["title"] == "Deriving the baseline and thresholds."
-        ]
-        self.assertEqual(len(leaves), 2)
-        ids = [n["id"] for n in leaves]
-        self.assertEqual(len(set(ids)), 2)  # GitHub-style suffix, not one key
-        self.assertIn("deriving-the-baseline-and-thresholds", ids)
-        self.assertIn("deriving-the-baseline-and-thresholds-1", ids)
-
-        # Keyed by id, each leaf receives only its own claim — no cross-talk.
-        vol_id, col_id = "deriving-the-baseline-and-thresholds", "deriving-the-baseline-and-thresholds-1"
-        out2 = build_structure(
-            extract(M5),
-            semantic={vol_id: ["volume-based baseline"], col_id: ["per-column baseline"]},
-        )
-        by_id = {n["id"]: n for n in _all_nodes(out2["root"])}
-        vol_claims = [c["text"] for c in by_id[vol_id]["checklist"] if c["kind"] == "claim"]
-        col_claims = [c["text"] for c in by_id[col_id]["checklist"] if c["kind"] == "claim"]
-        self.assertEqual(vol_claims, ["volume-based baseline"])
-        self.assertEqual(col_claims, ["per-column baseline"])
-
     def test_section_intros_get_checklists(self):
         # A section with children owns its intro range and gets a checklist, so
         # its intro prose isn't silently dropped (regression from the cold test).
@@ -216,6 +186,82 @@ class TestStructurePlan(unittest.TestCase):
         # but the key exists so the agent can fill it — and children's content is
         # not double-counted (the closure test asserts that globally).
         self.assertEqual(nodes["The failure classes"]["checklist"], [])
+
+
+DUPLICATE_READ_ME = """# Mod
+
+## Alpha
+
+Alpha intro.
+
+### Deriving the baseline and thresholds
+
+Prose about bucket width.
+
+## Beta
+
+Beta intro.
+
+### Deriving the baseline and thresholds
+
+Prose about per-column statistics.
+"""
+
+
+class TestDuplicateTitles(unittest.TestCase):
+    """Two headings with the same text (ticket 0008).
+
+    Self-contained on purpose: the real incident was M5's two `Deriving the
+    baseline and thresholds.` sections, but a regression test for identity
+    handling must not depend on a course repo happening to still contain that
+    heading.
+    """
+
+    def _tree(self, semantic=None):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(DUPLICATE_READ_ME, encoding="utf-8")
+            return build_structure(extract(root), semantic=semantic)["root"]
+
+    def test_same_titled_leaves_get_distinct_ids(self):
+        out = self._tree()
+        leaves = [
+            n
+            for n in _all_nodes(out)
+            if n["title"] == "Deriving the baseline and thresholds"
+        ]
+        self.assertEqual(len(leaves), 2)
+        # GitHub-style: the second occurrence carries the suffix, so the id is
+        # also the anchor the README's own table of contents would use.
+        self.assertEqual(
+            sorted(n["id"] for n in leaves),
+            ["deriving-the-baseline-and-thresholds", "deriving-the-baseline-and-thresholds-1"],
+        )
+
+    def test_id_keyed_claims_do_not_cross_between_the_two_leaves(self):
+        vol, col = "deriving-the-baseline-and-thresholds", "deriving-the-baseline-and-thresholds-1"
+        root = self._tree(semantic={vol: ["volume-based baseline"], col: ["per-column baseline"]})
+        by_id = {n["id"]: n for n in _all_nodes(root)}
+
+        def claims(leaf_id):
+            return [c["text"] for c in by_id[leaf_id]["checklist"] if c["kind"] == "claim"]
+
+        self.assertEqual(claims(vol), ["volume-based baseline"])
+        self.assertEqual(claims(col), ["per-column baseline"])
+
+    def test_a_title_keyed_pass_still_lands_on_both_leaves(self):
+        # The fallback for older title-keyed inputs: ambiguous by construction,
+        # so both leaves get the entry — which is why the passes key by id.
+        root = self._tree(semantic={"Deriving the baseline and thresholds": ["shared"]})
+        leaves = [
+            n for n in _all_nodes(root) if n["title"] == "Deriving the baseline and thresholds"
+        ]
+        for leaf in leaves:
+            self.assertEqual(
+                [c["text"] for c in leaf["checklist"] if c["kind"] == "claim"], ["shared"]
+            )
 
 
 class TestPlanWriterCLI(unittest.TestCase):
