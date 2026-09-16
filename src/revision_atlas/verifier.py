@@ -79,6 +79,23 @@ def _covers(artifact_words: set, needed: List[str]) -> bool:
     return all(w in artifact_words for w in needed)
 
 
+def _covers_literal(visible_text: str, label: str) -> bool:
+    """Presence test for a label that has no words left to match on.
+
+    `_words()` drops tokens of two characters or fewer and stop words, so a
+    collapsible labelled `C1`, `Q3` or `Why?` yields NOTHING to require — and
+    requiring nothing is not the same as the item being absent. That distinction
+    matters: the empty case fell through to the miss branch and failed a build for
+    a collapsible that was present and correctly audited (0015).
+
+    The fallback is the label's own text, whitespace-normalised and
+    case-insensitive. Coarser than word matching, but still an assertion — which is
+    why it is preferred over excusing the item from the count.
+    """
+    needle = " ".join((label or "").split()).strip().lower()
+    return bool(needle) and needle in visible_text
+
+
 @dataclass
 class Finding:
     level: str      # "failure" | "needs-review"
@@ -228,14 +245,20 @@ def _check_coverage(module_dir: Path, leaves: List[dict], rep: Report) -> None:
         missed: List[str] = []
         if p.exists():
             markup = p.read_text(encoding="utf-8")
-            words = set(_words(_visible_text(markup)))
+            visible = _visible_text(markup)      # already whitespace-collapsed, lowercased
+            words = set(_words(visible))
             has_svg = "<svg" in markup
             for item in leaf.get("checklist", []):
                 if item["kind"] == "details":
                     total += 1
                     label = _plain(item.get("summary") or item.get("text") or "")
                     needed = _words(label)
-                    if needed and _covers(words, needed):
+                    # "I cannot word-match this label" is not "this is missing":
+                    # fall back to the label's literal text rather than failing it
+                    found = (
+                        _covers(words, needed) if needed else _covers_literal(visible, label)
+                    )
+                    if found:
                         covered += 1
                     else:
                         missed.append(f"collapsible “{label[:60]}”")
@@ -407,6 +430,26 @@ def _check_labels(module_dir: Path, leaves: List[dict], rep: Report) -> None:
                 ))
 
 
+# SPEC §8. The agent passes are instructions, and an instruction can be ignored —
+# so an overshoot is REPORTED rather than assumed away. `needs-review`, not a
+# failure: a long reveal is faithful and merely longer than it should be, and the
+# notebook copes with it (it paginates) rather than losing anything.
+_REVEAL_WORDS = 500
+
+
+def _check_budgets(leaves: List[dict], rep: Report) -> None:
+    for leaf in leaves:
+        reveal = (leaf.get("reveal") or "").strip()
+        words = len(reveal.split())
+        if words > _REVEAL_WORDS:
+            rep.findings.append(Finding(
+                "needs-review", "budget", leaf["title"],
+                f"reveal is {words} words, over the {_REVEAL_WORDS}-word budget — "
+                f"the notebook paginates it into several nested pages where one was "
+                f"wanted",
+            ))
+
+
 def _merge_critic(critic: dict, rep: Report) -> None:
     """Fold in the LLM critic's drift report (§6.4b). Annotations only."""
     for leaf, entries in (critic or {}).items():
@@ -430,6 +473,7 @@ def verify(inv: dict, spec: dict, out_root: str, critic: "Optional[dict]" = None
     _check_anchors(inv, leaves, rep)
     _check_offline(module_dir, leaves, rep)
     _check_links(module_dir, Path(out_root), leaves, rep)
+    _check_budgets(leaves, rep)
     _check_labels(module_dir, leaves, rep)
     _merge_critic(critic, rep)
     return rep

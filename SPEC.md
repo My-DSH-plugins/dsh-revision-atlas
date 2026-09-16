@@ -187,8 +187,10 @@ leaf:
   NOT the same as being a leaf: a module root whose range is only its own heading is
   a **parent**, and gets no notebook, no link and no place in the leaf count. One
   node owning content in exactly one place is the point.
-- **Budgets**: recall block 3–5 bullets ≤60 words; notebook pages by checklist
-  size (§9); a leaf holds a **list of diagrams** — never two drawings of the
+- **Budgets**: recall block 3–5 bullets ≤60 words; **reveal ≤500 words** — the
+  answer, not the chapter, and 500 is the balance between carrying the information
+  and having the notebook paginate it across several nested pages; notebook pages by
+  checklist size (§9); a leaf holds a **list of diagrams** — never two drawings of the
   same structure, but an array when the leaf legitimately has several.
 - **Diagram — mermaid, or none** (see adr/0005, adr/0002):
   - `kind: mermaid` when (a) the source already contains a ` ```mermaid `
@@ -322,6 +324,16 @@ checklist coverage; per-leaf adherence (drift flags from the critic + grounding
 misses); broken anchors; offline-purity (no external load-bearing refs in maps);
 notebook page count vs budget; `needs-review` count. Any unclassified file or
 coverage miss is a **failure**, not a warning.
+
+**A check must distinguish "I could not test this" from "this is wrong."** An empty
+test is not a negative result, and conflating the two is how this project has produced
+its most misleading verdicts in both directions: an empty notebook passed because
+existence was checked and not content ([0016]); a clipped answer passed because text
+was checked and not layout ([0010]); a present collapsible *failed* because a label's
+tokenisability was checked and not its presence ([0015]). Every one of those was a
+correct artifact and a wrong check. Where the input cannot be tested as designed, the
+check says so — a coarser real assertion, or an explicit `needs-review` — rather than
+silently answering the question with the only branch it has.
 
 **`links` (broken anchors).** Every `href` in the map and in every notebook must
 resolve from the file that carries it — a dead link is invisible until someone

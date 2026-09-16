@@ -2,7 +2,7 @@
 
 - **Blocked by:** —
 - **Blocks:** —
-- **Status:** OPEN — found by a synthetic fixture while closing 0006
+- **Status:** done — fixed by the literal fallback (the preferred option)
 
 ## The defect
 
@@ -62,3 +62,34 @@ match is still a real check.
   text is present, and still **missed** when it is genuinely absent.
 - The existing `len(w) > 2`/stop-word filter stays for the multi-word case (it is
   what keeps `_covers` from matching on noise).
+
+## Fixed
+
+`_covers_literal(visible_text, label)`: when `_words()` leaves nothing to require, the
+label's own text — whitespace-normalised, case-insensitive — must still appear in the
+artifact. The item stays in the denominator and stays a failure axis; the assertion is
+coarser, not absent.
+
+The word filter is untouched for the multi-word case: `len(w) > 2` and the stop list
+are what keep `_covers` from matching on noise, and they are right for that job.
+
+## Evidence
+
+The ticket's own repro — `<details><summary>C1</summary>` plus one mermaid block:
+
+| | before | after |
+|---|---|---|
+| coverage | **1/2** | **2/2** |
+| verdict | FAIL — "collapsible “C1” not present" | **PASS** |
+
+And the failure still fires when it should: blanking `C1` out of the notebooks now
+reports a coverage miss naming `C1`. 2 tests, 87 green.
+
+## The rule this established
+
+A check must distinguish **"I could not test this"** from **"this is wrong"** — an
+empty test is not a negative result. Three bugs this session had exactly that shape:
+0016 checked existence, not content, so an empty notebook passed; 0010 checked text,
+not layout, so a clipped answer passed; 0015 checked tokenisability, not presence, so
+a present item failed. In each the artifact was fine and the check was wrong. Now
+written into SPEC §14.

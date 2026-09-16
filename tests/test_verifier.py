@@ -447,3 +447,81 @@ class TestEmptyModule(unittest.TestCase):
             module_out = root / "mindmaps" / root.name
             self.assertTrue((module_out / "spec.json").exists())
             self.assertTrue((module_out / "index.html").exists())
+
+
+class TestRevealBudget(unittest.TestCase):
+    """SPEC §8: reveal ≤500 words, asserted rather than hoped (0010)."""
+
+    def test_a_reveal_over_budget_is_needs_review_not_a_failure(self):
+        long_reveal = " ".join("word%d" % i for i in range(520))
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(
+                root,
+                recall={"section-one": {"recall": ["a hook"], "prompt": "why?",
+                                        "reveal": long_reveal}},
+            )
+            rep = verify(inv, spec, str(out))
+            self.assertTrue(rep.ok(), rep.render())          # annotates, never blocks
+            self.assertTrue(
+                any(f.check == "budget" and "over the 500-word budget" in f.detail
+                    for f in rep.needs_review),
+                rep.render(),
+            )
+
+    def test_a_reveal_within_budget_is_silent(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(
+                root,
+                recall={"section-one": {"recall": ["a hook"], "prompt": "why?",
+                                        "reveal": " ".join("word%d" % i for i in range(480))}},
+            )
+            rep = verify(inv, spec, str(out))
+            self.assertFalse([f for f in rep.needs_review if f.check == "budget"])
+
+
+SHORT_LABEL_READ_ME = """# Mod
+
+## Section one
+
+Intro prose.
+
+<details><summary>C1</summary>
+
+The body of the collapsible.
+
+</details>
+"""
+
+
+class TestShortLabelCoverage(unittest.TestCase):
+    """A label with no matchable words is unverifiable, not absent (0015).
+
+    `_words()` drops tokens of <=2 chars and stop words. A collapsible labelled
+    "C1" or "Why?" therefore yields NOTHING to require, and the check used to treat
+    that empty requirement as a missing item — a false FAILURE (exit 1) for a
+    collapsible that was present and correctly audited.
+    """
+
+    def test_a_short_label_present_in_the_artifact_is_found(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root, readme=SHORT_LABEL_READ_ME)
+            rep = verify(inv, spec, str(out))
+            self.assertTrue(rep.ok(), rep.render())
+            self.assertEqual(rep.stats["covered"], rep.stats["checklist_items"])
+
+    def test_a_short_label_that_is_genuinely_absent_still_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root, readme=SHORT_LABEL_READ_ME)
+            # blank the label out of every notebook's audit
+            for nb in (out / root.name / "leaves").glob("*/notebook.html"):
+                nb.write_text(nb.read_text(encoding="utf-8").replace("C1", "Z9"), encoding="utf-8")
+            rep = verify(inv, spec, str(out))
+            self.assertFalse(rep.ok())
+            self.assertTrue(
+                any(f.check == "coverage" and "C1" in f.detail for f in rep.failures),
+                rep.render(),
+            )
