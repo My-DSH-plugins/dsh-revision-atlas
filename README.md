@@ -1,90 +1,135 @@
-# dsh-revision-atlas
+# Revision Atlas
 
-Turn a course's Markdown into an **offline-first revision atlas**: a navigable mind
-map of every module, whose leaves are compacted recall units — mermaid diagrams and
-page-flip notebooks — with **machine-checked coverage** so no source
-content is silently dropped.
-
-## The problem
+Turn a course's Markdown into an **offline revision atlas**: a navigable mind map of
+the course whose leaves are compacted revision units — a recall block, a mermaid
+diagram, a self-test, and a page-flip notebook — with **machine-checked coverage** and
+a **human-gated plan**, so no source content is ever silently dropped.
 
 Long-form course notes — 1,700-line modules, cross-linked sidecar files, for/against
 debate pairs, collapsible example catalogs — are hard to revise. An atlas compacts
 them into a structure you can navigate on a phone in minutes, online or offline, and
 traces every node back to the exact source line it came from.
 
+## How it works
+
+It runs the familiar **spec → plan → implementation** shape, and it stops at the plan
+for you.
+
+1. **Spec** — your module's Markdown. It is the source of truth and is never edited,
+   re-authored, or second-guessed.
+2. **Plan** — the pipeline mirrors the document's own headings into a plan, and drafts
+   each leaf's checklist of what must survive compaction. It then **stops**: nothing
+   is generated until you approve the plan.
+3. **Approval** — the skill presents the plan and asks. You either ask for changes or
+   say "proceed"; only your explicit yes records the approval — who, when, and a
+   fingerprint of exactly what was approved.
+4. **Implementation** — the map and the notebooks are generated.
+5. **Verify** — a verifier re-checks every artifact: coverage (nothing dropped),
+   grounding (nothing invented), adherence (no drift), and freshness (still true to
+   the source).
+
+Change a file later, and the verifier names exactly which leaves went stale; those are
+the only thing that gets re-planned and re-approved.
+
 ## What it produces
 
 ```
 course atlas
-└── course index   (title = course name; nodes = modules)
-    └── module map (faithful to the source headings)
-        └── leaf    (recall block · mermaid · notebook · self-test · source audit)
+└── module map   (faithful to the source headings; the index into memory)
+    └── leaf     (recall block · mermaid · self-test · page-flip notebook)
 ```
 
 - **Faithful structure** — the map mirrors the document's own headings; nothing is
-  re-authored or reordered.
-- **Compacted leaves** — each leaf is one screen: 3–5 recall hooks, a structural
-  mermaid diagram, a self-test prompt, and a page-flip notebook
-  for depth.
-- **Source audit** — every leaf keeps its original bullets in a collapsible node, and
-  every node links back to its source anchor.
-- **Offline-first** — module maps are single self-contained files; notebooks are
-  precached so even leaves you've never opened work with no signal at all.
+  reordered or paraphrased away.
+- **Compacted leaves** — each leaf is one screen of hooks, with the notebook as the
+  depth layer.
+- **Source audit** — every leaf keeps its original bullets, and every node links back
+  to its exact `file:line`.
+- **Offline-first** — maps and notebooks are self-contained; they work with no
+  network.
+
+## Why a plugin, not a bare skill
+
+DSH already loads a plain `SKILL.md` from `~/.dsh/skills`. That is enough for a
+pure-instructions skill, and it is **not** the convenient choice here, because the
+`revision-atlas` skill is not instructions-only:
+
+- it ships a **Python pipeline** (extract → plan → generate → verify) plus four
+  **pass instructions** that run as fresh subagents;
+- it needs a stable, versioned install rather than a manual copy into the skills
+  directory;
+- its `<base>/tools` references map onto the host's skill-registry `resourceBase` —
+  the directory announced as `<skill_resources>`.
+
+A plugin provides all three via `dsh plugin add` and `ctx.skills.registerProvider()`.
+
+## What's inside
+
+| skill | invocation | what it does |
+|---|---|---|
+| `revision-atlas` | user-invoked | build / rebuild / approve a module's atlas — spec → plan → implementation |
+| `refresh-stale-leaves` | model-invoked | regenerate only the leaves whose source moved |
+
+The `revision-atlas` skill carries four pass instructions (`semantic`, `recall`,
+`mermaid`, `verifier-critic`) and the standard-library Python package under `tools/`.
+
+## Install
+
+The same `skills/<name>/SKILL.md` tree works on both hosts.
+
+### DeepSeek Harness
+
+```sh
+# Method 1: local link (recommended while developing)
+dsh plugin --profile <profile> add link:$PWD
+
+# Method 2: from Git
+dsh plugin --profile <profile> add "github:My-DSH-plugins/dsh-revision-atlas"
+
+# Method 3: after publishing to npm
+dsh plugin --profile <profile> add dsh-revision-atlas
+```
+
+Restart `dsh web` (or refresh), then type `/revision-atlas` in the composer or pick it
+from the skill picker.
+
+### Claude Code
+
+```sh
+claude plugin install /path/to/dsh-revision-atlas
+```
+
+The `.claude-plugin/plugin.json` manifest is included; the skills are the same
+`skills/` directory.
 
 ## Why you can trust it
 
-The one failure a summarizer cannot afford is a *silent omission*. The atlas enforces
-coverage as a machine-checked invariant, not a prompt: a deterministic inventory
-closes over every source file, each leaf carries a checklist of the items that must
-survive, and a verifier re-checks every generated artifact against that checklist. An
-unclassified file or a coverage miss **fails the build** — it never ships.
+The one failure a summarizer cannot afford is a *silent omission*. Two things make it
+loud instead:
 
-## How it works
+- **Coverage is an invariant, not a prompt.** A deterministic inventory closes over
+  every source file; each leaf carries a checklist; a verifier re-checks every
+  generated artifact against it. An unclassified file or a coverage miss **fails the
+  build**.
+- **The plan cannot change silently.** Approving a plan fingerprints the content you
+  reviewed; that approval lapses the moment the plan or its source changes, and the
+  plan says so — with the changed leaves named.
 
-`extract → spec → render → verify`
+## Development
 
-1. **Extract** (deterministic) — heading tree, link graph, and typed relationships
-   (sections, sidecars, debate pairs, framework matrices, aggregators, shared nodes).
-2. **Spec** (human-reviewed) — a per-module contract: nodes, sources, and the leaf
-   checklists that define what must survive.
-3. **Render** — course index, module maps, and per-leaf artifacts (mermaid,
-   notebook).
-4. **Verify** — re-parse every artifact, assert checklist coverage, report the
-   result. Nothing is trusted on faith.
-
-It ships as a **DeepSeek Harness skill** (global install, usable across any course
-repo), with artifacts written to each course's `mindmaps/` directory.
-
-## Status
-
-**Design phase** — the specification is complete enough to implement. This repository
-currently holds the design; the skill and generator are the next milestones.
-
-Roadmap:
-
-- [ ] Extractor: inventory + link graph + relationship classification + closure check
-- [ ] Spec writer: per-module `spec.yml` with per-leaf checklists
-- [ ] Renderer: course index + module maps (self-contained, offline)
-- [ ] Leaf generator: mermaid + recall/prompt/reveal + source audit
-- [ ] Notebook generator: page-flip notebooks with shared assets
-- [x] Verifier + coverage report
+```sh
+PYTHONPATH=src python3 -m unittest discover -s tests
+PYTHONPATH=src python3 -m revision_atlas.package --tools   # re-sync the bundled copy
+```
 
 ## Documentation
 
+- [`SPEC.md`](SPEC.md) — the full spec: the flow (§12.1), coverage invariant (§6),
+  verification (§14), directory layout (§13).
 - [`CONTEXT.md`](CONTEXT.md) — the glossary.
-- [`SPEC.md`](SPEC.md) — the full spec: data model, coverage invariant, notebook
-  model, offline packaging, skill interface.
-- [`adr/0001-coverage-invariant.md`](adr/0001-coverage-invariant.md) — the decision
-  behind the coverage invariant.
-- [`adr/0002-mermaid-rendering.md`](adr/0002-mermaid-rendering.md) — mermaid is
-  rendered to SVG at build time, not in the viewer.
-- [`adr/0003-diagram-kind-classifier.md`](adr/0003-diagram-kind-classifier.md) — a
-  leaf's diagram kind is content-driven (mermaid vs hand-drawn vs none). **Superseded
-  by adr/0005.**
-- [`adr/0004-handdrawn-geometry-invariant.md`](adr/0004-handdrawn-geometry-invariant.md) —
-  hand-drawn geometry guaranteed by a deterministic layout invariant. **Superseded
-  by adr/0005.**
-- [`adr/0005-diagrams-are-mermaid.md`](adr/0005-diagrams-are-mermaid.md) — diagrams
-  are mermaid, rendered at build time; the hand-drawn sketch path is removed.
-- [`adr/0006-module-scope.md`](adr/0006-module-scope.md) — a module's corpus is its
-  top-level markdown plus what that markdown links to inside the module.
+- [`adr/`](adr/) — the recorded decisions (coverage invariant, mermaid rendering,
+  diagrams-are-mermaid, module scope).
+
+## License
+
+MIT
