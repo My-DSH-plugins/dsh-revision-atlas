@@ -2,7 +2,7 @@
 
 - **Blocked by:** 0003
 - **Blocks:** 0006, 0007
-- **Status:** in progress — recall/prompt/reveal pass + renderer upgrade done; hand-drawn art generation remains
+- **Status:** in progress — sketch renderer + recall/prompt/reveal + renderer upgrade done; diagram content pass + wiring remain
 
 ## Goal
 
@@ -44,12 +44,25 @@ per §8 / adr/0003), the `prompt`/`reveal`, and the collapsed source audit bulle
   self-test (`prompt` + collapsed `reveal`), and the collapsed source audit. M5
   map is self-contained (no `<script src`/`<link`), 6 mermaid data-URIs inlined.
 
+- **Hand-drawn sketch renderer** — `sketch.render_svg(spec)` (adr/0004): the agent
+  supplies topology only (`{template: flow|tree|cycle|comparison, nodes:[{label,
+  shape}]}`); deterministic code lays it out and renders a hand-drawn SVG with
+  real `<text>` labels, seeded rough strokes, and the layout invariant (no
+  overlap, label fit, orientation, alignment) unit-tested.
+
 ## Remaining
 
-- **Hand-drawn diagram art** — generate a hand-drawn SVG (real `<text>` labels +
-  embedded handwriting-font subset, per §8) for every `handdrawn` slot. This is
-  the last open piece: the sketch renderer / agent-authored-art path, and wiring
-  `diagram.svg` back into the map + notebook.
+- **Diagram content pass** — the agent authoring pass that turns a leaf's frozen
+  checklist into a diagram spec (`template` + ordered `nodes` with 1–5-word
+  labels + `shape`), Gate-2-gated, stored in `plan.md` (like recall/prompt/reveal).
+  This is the "which concepts, which order, which shape" half — the sketch
+  renderer already owns the geometry.
+- **Wire hand-drawn SVG into the leaf** — for each `handdrawn` slot, run
+  `sketch.render_svg` and attach the SVG (as mermaid does), then inline into the
+  map/notebook. Needs the diagram content pass first (no spec, no SVG).
+- **Font subset** — embed the handwriting font as a base64 `@font-face` subset
+  (build-time curl, like the mermaid bundle); until then the font-family stack
+  in `sketch.py` is a stand-in and the jitter carries the hand-drawn feel.
 - **Size note**: inlining the source audit + mermaid in the Layer-1 map pushes M5
   to ~886 KB (vs ~350 KB for the checklist-only map). Acceptable for now; revisit
   if the "one self-contained HTML" budget matters (e.g. truncate source to a
