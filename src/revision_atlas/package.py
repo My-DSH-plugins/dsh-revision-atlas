@@ -44,10 +44,30 @@ def assemble(target: str, skills_dir: str = "skills") -> List[Path]:
     return written
 
 
+def sync_tools(dst: "Optional[str]" = None) -> Path:
+    """Copy `src/revision_atlas` into the skill bundle's `tools/`.
+
+    `skills/revision-atlas/tools/` is the plugin's ONE generated directory — it is
+    gitignored, so `src/` stays the only source of truth and the bundle cannot drift
+    by disagreement, only by forgetting to re-sync. This is what the `prepack` script
+    and the pre-`dsh plugin add <link>` step both run.
+    """
+    dest = Path(dst) if dst else _REPO / "skills" / "revision-atlas" / "tools" / "revision_atlas"
+    shutil.copytree(_REPO / "src" / "revision_atlas", dest, dirs_exist_ok=True, ignore=_IGNORE)
+    return dest
+
+
 def main(argv: "Optional[List[str]]" = None) -> int:
     ap = argparse.ArgumentParser(description="Assemble the Revision Atlas skill bundle")
-    ap.add_argument("target", help="write the bundle here (a skills dir, or a temp dir)")
+    ap.add_argument("target", nargs="?", help="write the bundle here (a skills dir, or a temp dir)")
+    ap.add_argument("--tools", action="store_true",
+                    help="sync src/revision_atlas into the in-repo skills bundle instead")
     args = ap.parse_args(argv)
+
+    if args.tools:
+        dest = sync_tools()
+        print(f"synced tools into {dest}")
+        return 0
 
     for path in assemble(args.target):
         print(f"assembled {path}")

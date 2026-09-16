@@ -1,8 +1,6 @@
 ---
 name: revision-atlas
-description: >-
-  Build, rebuild and refresh a course module's revision atlas — a mind map whose
-  leaves are paged notebooks, extracted faithfully from the module's markdown with
+description: Build, rebuild and refresh a course module's revision atlas — a mind map whose leaves are paged notebooks, extracted faithfully from the module's markdown with
   machine-checked coverage and adherence. Use this when the user wants to create or
   update a revision atlas, or to review and approve the plan that gates its
   generation.
@@ -43,9 +41,10 @@ a question, or silence is not approval.
 ## Where the tools live
 
 This skill ships as a bundle: the SKILL.md, the `passes/` instructions, and the
-`tools/` directory holding the Python package. Every relative path in this file and
-in `passes/*` resolves against the base directory announced in `<skill_resources>`;
-below, `<base>` denotes that directory.
+`tools/` directory holding the Python package. Below, `<base>` denotes the directory
+this SKILL.md is installed in — DeepSeek Harness announces it as `<skill_resources>`,
+and in Claude Code it is simply this skill's own directory, so a relative path like
+`tools/` resolves to `<base>/tools/` on either host.
 
 The pipeline is standard-library Python, so it runs as:
 

@@ -1,8 +1,6 @@
 ---
 name: refresh-stale-leaves
-description: >-
-  Regenerate only the leaves of a revision atlas whose source changed, leaving the
-  rest untouched. Reach for this when a module's markdown has moved since the atlas
+description: Regenerate only the leaves of a revision atlas whose source changed, leaving the rest untouched. Reach for this when a module's markdown has moved since the atlas
   was built and the verifier reports stale leaves — not for a first build, which is
   the `revision-atlas` skill.
 ---

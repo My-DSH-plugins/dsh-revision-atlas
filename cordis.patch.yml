@@ -1,0 +1,9 @@
+# dsh-revision-atlas bundle: registers skills/<name>/SKILL.md in this package on
+# ctx.skills. Applied after @deepseek-ai/dsh-base, which already mounts the skill
+# registry and the model-facing skill loader, so the skill ships with the profile
+# instead of being copied into ~/.dsh/skills by hand.
+#
+# Install with:  dsh plugin --profile <profile> add <npm|git|link>
+- insert:
+    - id: revision-atlas
+      name: dsh-revision-atlas

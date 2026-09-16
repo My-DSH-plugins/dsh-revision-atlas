@@ -1,0 +1,8 @@
+{
+  "name": "revision-atlas",
+  "version": "0.1.0",
+  "description": "Build, rebuild and refresh a course module's revision atlas — a mind map whose leaves are paged notebooks, with machine-checked coverage and a human-gated plan.",
+  "author": { "name": "Akshay Prabhakant" },
+  "license": "MIT",
+  "keywords": ["study", "revision", "mindmap", "course", "notebook"]
+}

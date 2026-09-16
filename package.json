@@ -1,0 +1,38 @@
+{
+  "name": "dsh-revision-atlas",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness skill: build, rebuild and refresh a course module's revision atlas \u2014 a mind map whose leaves are paged notebooks, extracted faithfully from the module's markdown with machine-checked coverage and a human-gated plan.",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "prepack": "PYTHONPATH=src python3 -m revision_atlas.package --tools"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "skills"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-skill",
+    "revision",
+    "study",
+    "mindmap",
+    "spaced-repetition"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/My-DSH-plugins/dsh-revision-atlas.git"
+  }
+}
