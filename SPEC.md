@@ -67,7 +67,7 @@ the bullets under a leaf are its checklist (depth). Inline annotations carry the
 few fields a human *decides* (`· kind: …`, `· diagram: …`), which the agent
 proposes and the human approves or corrects; everything else — ids, `sources`,
 anchors, `evidence`, hashes, canonical-source dedupe — is computed and emitted
-into the derived `spec.yml`.
+into the derived `spec.json`.
 
 ```markdown
 # Plan — 02-model-failure-science · status: proposed
@@ -84,11 +84,11 @@ into the derived `spec.yml`.
 - decision: ## The decision
 ```
 
-The derived `spec.yml` is the machine form of this same graph — `kind`, typed
+The derived `spec.json` is the machine form of this same graph — `kind`, typed
 edges (`branches`, `canonical`), and per-node `sources`/`evidence`/`content_hash`
 attached — with the leaf shape shown in §4.3. Humans do not read or edit it.
 
-### 4.3 Derived spec — leaf shape (`spec.yml`, generated, not hand-edited)
+### 4.3 Derived spec — leaf shape (`spec.json`, generated, not hand-edited)
 
 ```yaml
 leaf:
@@ -141,7 +141,7 @@ leaf:
    gates: (a) the **structure plan** (the full heading tree; coverage verified
    against the README and every connected markdown), and (b) the **leaf plan**
    (each leaf's `checklist`, its content captured to the fullest). A
-   deterministic script derives `spec.yml` (ids, `sources`, `evidence`, hashes —
+   deterministic script derives `spec.json` (ids, `sources`, `evidence`, hashes —
    nothing a human must write) from the approved `plan.md`. No artifact is
    generated until the plan is frozen; a leaf without a verified checklist is
    `needs-review`.
@@ -248,7 +248,7 @@ leaf:
 
 ## 10. Rendering
 
-- **Renderer**: markmap v1, behind a seam — the plan (`plan.md` → derived `spec.yml`) is renderer-agnostic.
+- **Renderer**: markmap v1, behind a seam — the plan (`plan.md` → derived `spec.json`) is renderer-agnostic.
 - Documented markmap workarounds (from the demo): `data:` image URIs are refused
   at markdown level → diagrams are injected into the tree JSON as base64 after
   transform; images survive only as image-only list items or standalone image
@@ -270,6 +270,53 @@ leaf:
 
 ## 12. Skill interface
 
+### 12.1 The flow — spec → plan → implementation
+
+The familiar three-stage shape, with the stages named for what they hold here:
+
+| stage | ours | who writes it | gate |
+|---|---|---|---|
+| **spec** — what must be true | the module README and its sidecars | the course author, before the tool runs | — |
+| **plan** — how it becomes an atlas | `plan.md` + `spec.json`: the faithful tree, and each leaf's checklist (what must survive compaction) | the pipeline, reviewed by a human | **blocking** — Gate 1 structure, Gate 2 checklists |
+| **tasks** — what remains to do | **derived, not authored**: the set of stale leaves | computed from the leaf fingerprints | — |
+| **implementation** | the artifacts: the map and the notebooks | the pipeline | — |
+| **verify** | the §14 report | machine | coverage · grounding · adherence · freshness · approval |
+
+**No hop drifts silently**, which is the property the whole shape exists for:
+
+- *spec → plan* — every node cites `file:line`; coverage enumerates the collapsibles,
+  mermaid blocks and sidecars; the plan's own fingerprints are recorded (§14.1).
+- *plan → artifacts* — coverage asserts each checklist item is present in its
+  notebook.
+- *artifacts → source* — grounding asserts every claim traces to a real anchor; the
+  critic reads the rest for drift.
+- *plan → time* — the approval's fingerprint lapses on any change to the plan or to
+  the source its checklists claim to capture.
+- *artifacts → source over time* — each leaf's `source_sha`, naming the leaves that
+  moved.
+
+Three deliberate departures from the usual shape:
+
+1. **The spec is not ours.** It pre-exists and belongs to the course author, so there
+   is no "does the plan satisfy the spec?" gate — the pipeline's obligation is
+   fidelity to the source, not criticism of it.
+2. **One human gate, not three.** The plan is the only thing a human approves; the
+   rest is machine-checked, and a human re-enters through a `needs-review` item
+   rather than through a stage (§15: post-generation review is exception-only).
+3. **The task layer costs nothing to keep current.** Because it is a diff rather than
+   a document, "what needs doing" never goes stale and never needs re-approval —
+   only the plan does.
+
+`build-course-map` drives spec → plan → implementation and stops at the gates;
+`refresh-stale-leaves` **is** the task layer. The router routes on this state:
+
+| state | what happens |
+|---|---|
+| no plan | build the plan; stop at the gates, naming what to read |
+| plan present, unapproved | say so; name the plan and the command that approves it |
+| plan approved | generate, then report |
+| leaf fingerprints moved | the moved leaves are the task list |
+
 | skill | invocation | triggers |
 |---|---|---|
 | `revision-atlas` (router) | user-invoked | names the two below; zero context load |
@@ -281,7 +328,7 @@ leaf:
 The skill lives globally (`~/.dsh/skills/revision-atlas/`); artifacts live in
 each course repo's `mindmaps/`.
 
-The **plan (`plan.md`, with its derived `spec.yml`) is the common artifact both
+The **plan (`plan.md`, with its derived `spec.json`) is the common artifact both
 skills share** — the router routes by intent and state, not by duplicating the
 plan: no plan yet → build (create the plan, both gates, full generate); plan
 exists → refresh (diff source against the plan's content hashes). A refresh that
@@ -299,7 +346,7 @@ mindmaps/
 ├── og/                   # PNG thumbnails
 └── <module-slug>/
     ├── plan.md            # human source of truth (approved)
-    ├── spec.yml           # derived machine contract (generated)
+    ├── spec.json           # derived machine contract (generated)
     ├── index.html        # self-contained module map
     └── leaves/<leaf-id>/
         ├── notebook.html
@@ -386,7 +433,7 @@ has moved on since it was built.
 1. Extractor: inventory + link graph + classification ladder + closure check.
 2. Structure plan: full `plan.md` node graph (headings + kinds + diagram hints).
    **Gate 1 — human approves coverage** (every H2/H3/H4, collapsible, mermaid
-   block, and linked markdown accounted for). Script derives `spec.yml`.
+   block, and linked markdown accounted for). Script derives `spec.json`.
 3. Leaf plan: per-leaf `checklist` drafted from the section content.
    **Gate 2 — human approves checklists** (information captured to the fullest).
 4. Renderer: course index + module map (markmap, inline diagrams) — runs against

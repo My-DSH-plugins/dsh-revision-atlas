@@ -8,14 +8,14 @@
 
 From the inventory, draft the **structure plan** in `plan.md`: the full heading
 tree, a `Coverage:` summary line, and proposed `· kind:` / `· diagram:`
-annotations. Then derive the structure fields of `spec.yml` (ids, `sources`,
+annotations. Then derive the structure fields of `spec.json` (ids, `sources`,
 `evidence`, canonical-source dedupe).
 
 ## Acceptance
 
 - `plan.md` opens with a `Coverage:` line and lists every heading + linked file
 - Gate 1 is a human approval of this structure (no generation happens before it)
-- `spec.yml` (structure part) is derived, never hand-written
+- `spec.json` (structure part) is derived, never hand-written
 
 ## Out of scope
 
@@ -31,7 +31,7 @@ annotations. Then derive the structure fields of `spec.yml` (ids, `sources`,
 ## Notes (implementation)
 
 - The derived machine contract is emitted as `spec.json` (stdlib `json`, no
-  PyYAML dependency) rather than `spec.yml`; trivially switchable if a YAML
+  PyYAML dependency) rather than `spec.json`; trivially switchable if a YAML
   dependency is added.
 - Typed edges carry `evidence` (`{file, line}` = the README line that cited the
   sidecar); unlinked nodes (framework-matrix, needs-review) have none.

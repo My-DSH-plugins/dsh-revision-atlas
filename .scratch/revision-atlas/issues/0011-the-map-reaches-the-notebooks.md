@@ -75,7 +75,7 @@ with synthetic fixtures built in the §13 layout:
 ## Not done
 
 - §13's `diagram.svg` / `diagram.mmd` per leaf are still unbuilt (mermaid is
-  inlined as data URIs), as are `atlas.yml` and `og/`; `spec.yml` is written as
+  inlined as data URIs), as are `atlas.yml` and `og/`; `spec.json` is written as
   `spec.json`.
 - Fragments are not asserted (see SPEC §14): a wrong `#anchor` still opens the
   right file, and GitHub's own slug rule is not ours to replicate.

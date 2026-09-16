@@ -26,7 +26,7 @@ and `GenAI_notes/Harness Engineering/modules/02-model-failure-science`):
 
 - No LLM. Deterministic filename/structure classification is **in scope**; the
   residue is flagged `needs_review` (typed by 0002 / the human).
-- No `plan.md` / `spec.yml` emission (that's 0002). The §7 content-signal ladder
+- No `plan.md` / `spec.json` emission (that's 0002). The §7 content-signal ladder
   and node-graph assembly (debate-for + debate-against → one `debate-pair` node,
   `framework-domain`×N + `aggregator` → one `framework-matrix` node) are 0002.
 
