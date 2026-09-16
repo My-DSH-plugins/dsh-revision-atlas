@@ -8,8 +8,8 @@
 A **Revision Atlas** turns a course's markdown into a navigable, offline-capable
 revision surface: a course index of modules, one mind map per module (faithful
 to the source structure), and — at every terminal branch — a compacted leaf
-(recall block + one diagram — hand-drawn by default, mermaid where exactness
-matters — + paged notebook + self-test prompt + source audit), with every node
+(recall block + a mermaid diagram where structure matters + paged notebook +
+self-test prompt + source audit), with every node
 linking back to its source.
 
 **Acceptance test.** The same generic skill, with no per-course tuning, produces
@@ -75,7 +75,7 @@ into the derived `spec.yml`.
 ## Coverage: 8 H2 · 10 H3 · 12 collapsibles · 0 unclassified
 
 ## The failure classes
-### 1. Hallucination & confabulation · diagram: handdrawn
+### 1. Hallucination & confabulation · diagram: mermaid
 - definition paragraph
 - <details>: each collapsible example, by name
 ### Instruction drift vs. position bias · kind: debate-pair
@@ -100,10 +100,10 @@ leaf:
   prompt: "…"             # self-test question (agent-generated, stored, reviewable)
   recall: ["hook", "hook"]  # 3-5 bullets, <=60 words
   reveal: "…"             # answer/structure shown on reveal
-  diagrams:               # a list — a leaf may hold an array of diagrams (§8)
-    - kind: handdrawn     # handdrawn | mermaid
-      art: "m2-c1.svg"    # the drawing (hand-drawn, or rendered mermaid)
-      src: null           # .mmd source, only when kind == mermaid
+  diagrams:               # mermaid, or empty — a leaf may hold an array (§8)
+    - kind: mermaid
+      art: "m2-c1.svg"    # rendered mermaid SVG
+      src: "m2-c1.mmd"    # .mmd source (diffable)
   notebook: "leaves/m2-c1/notebook.html"
   source: "…"             # collapsed audit bullets
   status: draft | needs-review | verified
@@ -173,21 +173,21 @@ leaf:
 - **Budgets**: recall block 3–5 bullets ≤60 words; notebook pages by checklist
   size (§9); a leaf holds a **list of diagrams** — never two drawings of the
   same structure, but an array when the leaf legitimately has several.
-- **Diagram — content-driven, not a blanket rule** (see adr/0003):
-  - residual `kind: handdrawn` — the catch-all: a hand-drawn flowchart/sketch in
-    the notebook's visual language (memory + coherent look), chosen when no
-    source mermaid block and no gated exactness upgrade applies;
-  - `kind: mermaid` only when (a) the source already contains a ` ```mermaid `
-    block — extract and render, near-zero cost — or (b) the content is a decision
-    procedure / state machine / multi-branch sequence whose exact branching
-    matters. Storage: `.mmd` source (diffable) rendered to SVG at build time
+- **Diagram — mermaid, or none** (see adr/0005, adr/0002):
+  - `kind: mermaid` when (a) the source already contains a ` ```mermaid `
+    block — extract and render, near-zero cost — or (b) the leaf has structure
+    worth drawing (a decision procedure / state machine / multi-branch sequence /
+    taxonomy / mental model), authored by the agent as `flowchart` or `mindmap`,
+    Gate-2-gated. Storage: `.mmd` source (diffable) rendered to SVG at build time
     (adr/0002);
-  - an empty `diagrams: []` for leaves with nothing structural worth drawing.
+  - an empty `diagrams: []` otherwise — the deterministic default; a diagram is
+    *proposed* by the agent, never assumed by the classifier.
   - v1: a diagram's exact branching is **human-reviewed**, not machine-checked;
     the verifier asserts label presence only.
-- **Hand-drawn art**: SVG with real `<text>` labels — never text→paths, because
-  the adherence verifier reads the labels. The handwriting font is embedded as a
-  subset (base64 `@font-face`) so it survives offline and re-theming.
+- **Interactivity**: diagrams are static SVG inlined into the HTML; the notebook
+  adds a small pan/zoom script so a reader can zoom/reset/click-drag offline,
+  without shipping `mermaid.js` (adr/0002's size decision). PDF export is the one
+  accepted loss — a dense static SVG prints illegibly.
 - **Self-test**: `prompt`/`reveal` authored at generation, stored in `plan.md` so
   they don't churn and can be hand-edited.
 - **Source node**: the collapsed audit bullets live in the map; it is the
@@ -207,11 +207,11 @@ leaf:
   zoom, the verifier can parse them, and size stays small.
 - **Shared assets**: one handwriting font + flip JS + theme per module under
   `mindmaps/assets/`, referenced (not inlined) by pages, cached once offline.
-- **Vendored look, not a skill dependency**: the handwriting look and hand-drawn
-  style are borrowed by copying the template + font + sketch assets into
-  `mindmaps/assets/`; the atlas never invokes the `handwritten-notes` /
-  `hand-drawn-diagrams` skills at generation time. It borrows the *aesthetics*,
-  not the *contract* — its checklist-fed, paged, verified pipeline is its own.
+- **Vendored look, not a skill dependency**: the notebook's handwriting look is
+  borrowed by copying the template + font into `mindmaps/assets/`; the atlas
+  never invokes the `handwritten-notes` skill at generation time. It borrows the
+  *aesthetics*, not the *contract* — its checklist-fed, paged, verified pipeline
+  is its own. (Diagrams are mermaid — adr/0005 — no hand-drawn skill involved.)
 - **Offline**: a leaf notebook works offline exactly like the module map;
   notebooks are leaf-scoped, never course-scoped.
 
@@ -272,8 +272,8 @@ mindmaps/
     ├── index.html        # self-contained module map
     └── leaves/<leaf-id>/
         ├── notebook.html
-        ├── diagram.svg   # hand-drawn, or rendered mermaid
-        └── diagram.mmd   # only when kind == mermaid
+        ├── diagram.svg   # rendered mermaid
+        └── diagram.mmd   # the .mmd source (diffable)
 ```
 
 ## 14. Verification & coverage report
@@ -294,12 +294,11 @@ coverage miss is a **failure**, not a warning.
    **Gate 2 — human approves checklists** (information captured to the fullest).
 4. Renderer: course index + module map (markmap, inline diagrams) — runs against
    the frozen plan.
-5. Leaf generator: diagram (hand-drawn/mermaid per §8) + recall/prompt/reveal +
+5. Leaf generator: diagram (mermaid per §8) + recall/prompt/reveal +
    source node — runs against the frozen checklist.
 6. Notebook generator: paged flip template + shared assets.
 7. Verifier: coverage (deterministic) + adherence (grounding + LLM critic) + report; post-gen human review is exception-only.
 
 Open: OG-image pipeline; the eventual publish step into the portfolio repo;
-whether `needs-review` blocks or merely annotates in v1; the classifier that
-assigns each leaf's diagram kind (handdrawn vs mermaid vs none); whether the two
+whether `needs-review` blocks or merely annotates in v1; whether the two
 plan gates are one combined approval step or two separate ones.

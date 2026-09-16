@@ -1,8 +1,8 @@
 # dsh-revision-atlas
 
 Turn a course's Markdown into an **offline-first revision atlas**: a navigable mind
-map of every module, whose leaves are compacted recall units — mermaid + hand-drawn
-diagrams and page-flip notebooks — with **machine-checked coverage** so no source
+map of every module, whose leaves are compacted recall units — mermaid diagrams and
+page-flip notebooks — with **machine-checked coverage** so no source
 content is silently dropped.
 
 ## The problem
@@ -18,13 +18,13 @@ traces every node back to the exact source line it came from.
 course atlas
 └── course index   (title = course name; nodes = modules)
     └── module map (faithful to the source headings)
-        └── leaf    (recall block · mermaid · sketch · notebook · self-test · source audit)
+        └── leaf    (recall block · mermaid · notebook · self-test · source audit)
 ```
 
 - **Faithful structure** — the map mirrors the document's own headings; nothing is
   re-authored or reordered.
 - **Compacted leaves** — each leaf is one screen: 3–5 recall hooks, a structural
-  mermaid diagram, an intuition sketch, a self-test prompt, and a page-flip notebook
+  mermaid diagram, a self-test prompt, and a page-flip notebook
   for depth.
 - **Source audit** — every leaf keeps its original bullets in a collapsible node, and
   every node links back to its source anchor.
@@ -47,7 +47,7 @@ unclassified file or a coverage miss **fails the build** — it never ships.
    (sections, sidecars, debate pairs, framework matrices, aggregators, shared nodes).
 2. **Spec** (human-reviewed) — a per-module contract: nodes, sources, and the leaf
    checklists that define what must survive.
-3. **Render** — course index, module maps, and per-leaf artifacts (mermaid, sketch,
+3. **Render** — course index, module maps, and per-leaf artifacts (mermaid,
    notebook).
 4. **Verify** — re-parse every artifact, assert checklist coverage, report the
    result. Nothing is trusted on faith.
@@ -65,7 +65,7 @@ Roadmap:
 - [ ] Extractor: inventory + link graph + relationship classification + closure check
 - [ ] Spec writer: per-module `spec.yml` with per-leaf checklists
 - [ ] Renderer: course index + module maps (self-contained, offline)
-- [ ] Leaf generator: mermaid + sketch + recall/prompt/reveal + source audit
+- [ ] Leaf generator: mermaid + recall/prompt/reveal + source audit
 - [ ] Notebook generator: page-flip notebooks with shared assets
 - [ ] Verifier + coverage report
 
@@ -79,4 +79,10 @@ Roadmap:
 - [`adr/0002-mermaid-rendering.md`](adr/0002-mermaid-rendering.md) — mermaid is
   rendered to SVG at build time, not in the viewer.
 - [`adr/0003-diagram-kind-classifier.md`](adr/0003-diagram-kind-classifier.md) — a
-  leaf's diagram kind is content-driven (mermaid vs hand-drawn vs none).
+  leaf's diagram kind is content-driven (mermaid vs hand-drawn vs none). **Superseded
+  by adr/0005.**
+- [`adr/0004-handdrawn-geometry-invariant.md`](adr/0004-handdrawn-geometry-invariant.md) —
+  hand-drawn geometry guaranteed by a deterministic layout invariant. **Superseded
+  by adr/0005.**
+- [`adr/0005-diagrams-are-mermaid.md`](adr/0005-diagrams-are-mermaid.md) — diagrams
+  are mermaid, rendered at build time; the hand-drawn sketch path is removed.

@@ -44,12 +44,10 @@ class TestRenderer(unittest.TestCase):
         self.assertIn("The failure classes", html)  # a section title
         self.assertIn("README.md:34", html)  # its source anchor
         self.assertIn("debate-pair", html)  # a kind badge
-        # leaf artifact surface (replaces the checklist placeholder): a hand-drawn
-        # diagram slot and the collapsed source audit. (Em-dash is JSON-escaped to
-        # \u2014 in the inlined tree, so assert on the ASCII pieces.)
-        self.assertIn("hand-drawn sketch", html)
-        self.assertIn("pending", html)
+        # leaf artifact surface: the collapsed source audit (M2 has no source
+        # mermaid, so no diagram nodes — diagrams are mermaid-only per adr/0005).
         self.assertIn("source (", html)
+        self.assertNotIn("hand-drawn", html)
 
     def test_leaf_shows_recall_and_selftest(self):
         recall = {

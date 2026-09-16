@@ -1,7 +1,7 @@
 # Diagram kind is content-driven: mermaid for source-authored or exactness-critical structure, hand-drawn as the residual
 
 ---
-Status: accepted
+Status: superseded by adr/0005
 ---
 
 A leaf needs a diagram, but not every leaf wants the same kind: a hand-drawn

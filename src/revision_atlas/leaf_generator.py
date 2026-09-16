@@ -2,16 +2,17 @@
 
 Adds to every leaf the artifact fields the agent pass will later fill:
 
-  - `diagrams` — a list of content-driven diagram slots, decided
+  - `diagrams` — a list of diagram slots (adr/0005: mermaid only). Decided
     deterministically where the rule is mechanical: each source mermaid block ->
-    a `mermaid` entry; a `needs-review` residue -> `[]`; otherwise -> one
-    `handdrawn` entry (the default the agent may override with a Gate-2-gated
-    proposal). A leaf may hold an array of diagrams.
+    a `mermaid` entry; a `needs-review` residue -> `[]`; otherwise -> `[]` (the
+    agent may *propose* a mermaid diagram during the semantic pass, Gate-2-gated).
+    A leaf may hold an array of mermaid diagrams.
   - `source` — the raw bullet lines from the leaf's source range (the collapsed
     audit surface the learner diffs against).
 
 The agentic text fields (recall block, prompt/reveal) merge in spec_writer's
-plan (`--recall`); the diagram art itself is a later pass over this skeleton.
+plan (`--recall`); the agent-authored mermaid diagram is a later pass over this
+skeleton (rendered at build time per adr/0002).
 """
 from __future__ import annotations
 
@@ -38,7 +39,7 @@ def _assign_diagrams(inv: dict, node: dict) -> list:
             }
             for mline in mermaid_lines
         ]
-    return [{"kind": "handdrawn", "justification": "default — agent may override"}]
+    return []
 
 
 def _source_bullets(inv: dict, node: dict) -> List[str]:

@@ -65,17 +65,15 @@ def _img_data_uri(svg: str) -> str:
 
 
 def _diagram_node(d: dict) -> dict:
-    """One diagram slot -> an image-only markmap node (SPEC §10: images survive
-    only as image-only nodes), or a placeholder until the art is generated."""
+    """One mermaid diagram slot -> an image-only markmap node (SPEC §10: images
+    survive only as image-only nodes), or a placeholder until rendered."""
     if d.get("svg"):
         img = (
             f'<img src="{_img_data_uri(d["svg"])}" '
             'style="max-width:280px;background:#fff;border-radius:4px" />'
         )
         return {"content": img, "children": []}
-    kind = d.get("kind", "handdrawn")
-    label = {"handdrawn": "hand-drawn sketch", "mermaid": "mermaid"}.get(kind, kind)
-    return {"content": f'<span style="color:#8b93a7">[diagram] {label} — pending</span>', "children": []}
+    return {"content": '<span style="color:#8b93a7">[diagram] mermaid — pending</span>', "children": []}
 
 
 def _leaf_artifact_children(node: dict) -> List[dict]:

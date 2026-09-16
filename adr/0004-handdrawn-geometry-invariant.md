@@ -1,7 +1,7 @@
 # Hand-drawn diagram geometry is guaranteed by a deterministic layout invariant — not by agent coordinates or a vision pass
 
 ---
-Status: accepted
+Status: superseded by adr/0005
 ---
 
 Every hand-drawn leaf diagram must look right in a way the learner can trust:

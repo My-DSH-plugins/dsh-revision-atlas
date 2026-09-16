@@ -44,12 +44,13 @@ class TestLeafGenerator(unittest.TestCase):
             self.assertIn("diagrams", n)
             self.assertIn("source", n)
 
-    def test_m2_defaults_to_handdrawn(self):
-        # M2 has no mermaid blocks and no residue -> one handdrawn slot per leaf.
+    def test_m2_no_source_mermaid_defaults_to_empty(self):
+        # M2 has no mermaid blocks and no residue -> empty diagrams (adr/0005:
+        # the agent proposes mermaid; it is never assumed by the classifier).
         _, tree = _annotated(M2)
         leaves = [n for n in _leaves(tree) if "checklist" in n]
         for n in leaves:
-            self.assertEqual([d["kind"] for d in n["diagrams"]], ["handdrawn"])
+            self.assertEqual(n["diagrams"], [])
 
     def test_m5_mermaid_residue_and_default(self):
         _, tree = _annotated(M5)
@@ -61,10 +62,9 @@ class TestLeafGenerator(unittest.TestCase):
         )
         # needs-review residue -> no diagrams
         self.assertEqual(leaves["code/README.md"]["diagrams"], [])
-        # no mermaid in range -> handdrawn default
+        # no mermaid in range -> empty (default), not a handdrawn slot
         self.assertEqual(
-            [d["kind"] for d in leaves["The transaction feed that changed silently"]["diagrams"]],
-            ["handdrawn"],
+            leaves["The transaction feed that changed silently"]["diagrams"], []
         )
 
     def test_m5_array_of_mermaid_diagrams(self):

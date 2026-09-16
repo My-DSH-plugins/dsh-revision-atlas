@@ -52,8 +52,7 @@ diagram can be re-rendered and re-verified.
 ## Scope
 
 This ADR governs *how* mermaid is rendered **when a leaf carries one**. Whether a
-leaf carries mermaid at all is a per-leaf content decision (SPEC §8): hand-drawn
-is the default, mermaid appears only for source-authored blocks or for decision /
-state / sequence leaves whose exact branching matters — never two drawings of the
-same structure. For v1 the exact branching of generated diagrams is human-reviewed,
-not machine-checked.
+leaf carries mermaid at all is a per-leaf content decision (adr/0005): mermaid is
+the only diagram kind — source-authored blocks are extracted, and the agent may
+propose `flowchart`/`mindmap` diagrams, Gate-2-gated. For v1 the exact branching of
+generated diagrams is human-reviewed, not machine-checked.
