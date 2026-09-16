@@ -67,7 +67,7 @@ Roadmap:
 - [ ] Renderer: course index + module maps (self-contained, offline)
 - [ ] Leaf generator: mermaid + recall/prompt/reveal + source audit
 - [ ] Notebook generator: page-flip notebooks with shared assets
-- [ ] Verifier + coverage report
+- [x] Verifier + coverage report
 
 ## Documentation
 
@@ -86,3 +86,5 @@ Roadmap:
   by adr/0005.**
 - [`adr/0005-diagrams-are-mermaid.md`](adr/0005-diagrams-are-mermaid.md) — diagrams
   are mermaid, rendered at build time; the hand-drawn sketch path is removed.
+- [`adr/0006-module-scope.md`](adr/0006-module-scope.md) — a module's corpus is its
+  top-level markdown plus what that markdown links to inside the module.

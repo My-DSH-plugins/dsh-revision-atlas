@@ -83,7 +83,7 @@ class Report:
     stats: Dict[str, int] = field(default_factory=dict)
     coverage: List[dict] = field(default_factory=list)
     findings: List[Finding] = field(default_factory=list)
-    inventory: List[str] = field(default_factory=list)
+    out_of_scope: List[dict] = field(default_factory=list)
 
     @property
     def failures(self) -> List[Finding]:
@@ -102,7 +102,8 @@ class Report:
         out.append(
             f"Inventory: {s.get('enumerated', 0)} files · "
             f"{s.get('classified', 0)} classified · {s.get('ignored', 0)} ignored · "
-            f"{s.get('needs_review_files', 0)} needs-review"
+            f"{s.get('needs_review_files', 0)} needs-review · "
+            f"{s.get('out_of_scope', 0)} out of scope"
         )
         out.append(
             f"Leaves: {s.get('leaves', 0)} · artifacts {s.get('artifacts', 0)} · "
@@ -111,6 +112,15 @@ class Report:
             f"grounded claims {s.get('grounded', 0)}/{s.get('claims', 0)}"
         )
         out.append("")
+
+        if self.out_of_scope:
+            out.append(
+                "## Out of scope (inside the module, but the module's own markdown "
+                "never reaches it — informational)"
+            )
+            for o in self.out_of_scope:
+                out.append(f"- {o['path']}: {o['reason']}")
+            out.append("")
 
         seen = [c for c in self.coverage if c["missed"]]
         if seen:
@@ -159,6 +169,8 @@ def _check_closure(inv: dict, rep: Report) -> None:
             f"links `{d['target']}` which does not exist",
         ))
     rep.stats["needs_review_files"] = c["needs_review"]
+    rep.stats["out_of_scope"] = c.get("out_of_scope", 0)
+    rep.out_of_scope = inv.get("out_of_scope", [])
 
 
 def _check_artifacts(module_dir: Path, leaves: List[dict], rep: Report) -> None:

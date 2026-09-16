@@ -60,8 +60,8 @@ class TestLeafGenerator(unittest.TestCase):
             [d["kind"] for d in leaves["Quality gates: validation in the pipeline"]["diagrams"]],
             ["mermaid"],
         )
-        # needs-review residue -> no diagrams
-        self.assertEqual(leaves["code/README.md"]["diagrams"], [])
+        # the out-of-scope code/README.md is not a leaf at all
+        self.assertNotIn("code/README.md", leaves)
         # no mermaid in range -> empty (default), not a handdrawn slot
         self.assertEqual(
             leaves["The transaction feed that changed silently"]["diagrams"], []

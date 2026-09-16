@@ -29,7 +29,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Directories treated as noise. A .md under any of these is `ignored`, not
 # classified. Case-insensitive, matched on any path segment.
@@ -165,15 +165,52 @@ def extract(root: "str | Path") -> dict:
     mermaid: Dict[str, List[int]] = {}
     details: Dict[str, List[dict]] = {}
 
-    for rel in md_files:
+    def _inside(p: Path) -> bool:
+        try:
+            return p.resolve().is_relative_to(rroot)
+        except ValueError:
+            return False
+
+    def _noise(rel: Path) -> "Optional[str]":
+        return next((part for part in rel.parts if part.lower() in IGNORED_DIRS), None)
+
+    # --- what belongs to this module? ----------------------------------------
+    # A file is IN SCOPE when it sits DIRECTLY under the module path, or when an
+    # in-scope file links to it and it lies INSIDE the module path. A module's
+    # narrative is its top-level markdown plus whatever that markdown reaches — a
+    # subdirectory's own README (a `code/` folder, a `notebooks/` folder) is not
+    # part of the narrative unless something in the narrative cites it. This is
+    # what keeps a module's scope its own, without an ever-growing ignore list.
+    seeds = [rel for rel in md_files if len(rel.parts) == 1 and _noise(rel) is None]
+    in_scope: List[Path] = []
+    seen: set = set()
+    queue = list(seeds)
+    while queue:
+        rel = queue.pop(0)
         posix = rel.as_posix()
-        matched = next((part for part in rel.parts if part.lower() in IGNORED_DIRS), None)
-        if matched is not None:
-            files.append(
-                {"path": posix, "status": "ignored", "reason": f"noise dir ({matched})"}
-            )
+        if posix in seen:
             continue
+        seen.add(posix)
+        in_scope.append(rel)
         h, l, m, d = _parse_file(root / rel)
+        headings[posix] = h
+        links[posix] = l
+        mermaid[posix] = m
+        details[posix] = d
+        for link in l:
+            target = link["target"].split("#", 1)[0].strip()
+            if not target or not target.lower().endswith(".md"):
+                continue
+            cand = root / rel.parent / target      # links resolve against the file
+            if not cand.exists() or not _inside(cand):
+                continue                           # outside the module: not ours
+            crev = cand.relative_to(root)
+            if _noise(crev) is None and crev.as_posix() not in seen:
+                queue.append(crev)
+
+    for rel in in_scope:
+        posix = rel.as_posix()
+        h = headings[posix]
         if posix.lower() == "readme.md":
             files.append(
                 {"path": posix, "status": "classified", "kind": "module", "reason": "module README"}
@@ -188,10 +225,26 @@ def extract(root: "str | Path") -> dict:
                 files.append(
                     {"path": posix, "status": "needs_review", "reason": "untyped sidecar (residue)"}
                 )
-        headings[posix] = h
-        links[posix] = l
-        mermaid[posix] = m
-        details[posix] = d
+
+    # Noise dirs are ignored BY EXPLICIT RULE (SPEC §6.1). Anything else inside
+    # the module that the narrative never reaches is reported as out of scope —
+    # visible in the report, but never a build failure, because it is not part of
+    # the module's own material.
+    out_of_scope: List[dict] = []
+    for rel in md_files:
+        posix = rel.as_posix()
+        if posix in seen:
+            continue
+        matched = _noise(rel)
+        if matched is not None:
+            files.append(
+                {"path": posix, "status": "ignored", "reason": f"noise dir ({matched})"}
+            )
+        else:
+            out_of_scope.append({
+                "path": posix,
+                "reason": "not directly under the module and not linked by an in-scope file",
+            })
 
     # Resolve relative .md links against the inventory. A link whose target sits
     # inside the module tree but does not exist is dangling. Links that point
@@ -202,7 +255,7 @@ def extract(root: "str | Path") -> dict:
             tgt = l["target"].split("#", 1)[0].strip()
             if not tgt:
                 continue
-            resolved = (root / tgt).resolve()
+            resolved = (root / Path(source).parent / tgt).resolve()
             inside = False
             try:
                 inside = resolved.is_relative_to(rroot)
@@ -219,6 +272,7 @@ def extract(root: "str | Path") -> dict:
         "unaccounted": sum(
             1 for f in files if f["status"] not in ("classified", "ignored", "needs_review")
         ),
+        "out_of_scope": len(out_of_scope),
         "dangling_links": len(dangling),
     }
 
@@ -229,6 +283,7 @@ def extract(root: "str | Path") -> dict:
         "links": links,
         "mermaid_blocks": mermaid,
         "details_blocks": details,
+        "out_of_scope": out_of_scope,
         "dangling_links": dangling,
         "closure": closure,
     }

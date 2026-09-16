@@ -81,14 +81,17 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("Gate 2 — leaf checklists", out["plan_md"])
         self.assertIn("[src README.md:", out["plan_md"])
 
-    def test_m5_flags_residue(self):
-        out = build_structure(extract(M5))
+    def test_m5_has_no_in_scope_residue(self):
+        # `code/README.md` is a subdirectory's own README — out of the module's
+        # narrative scope, so it is neither a needs-review node nor a `DECIDE`.
+        inv = extract(M5)
+        out = build_structure(inv)
         nodes = list(_all_nodes(out["root"]))
-        nr = [n for n in nodes if n["kind"] == "needs-review"]
-        self.assertEqual([n["file"] for n in nr], ["code/README.md"])
-        self.assertEqual(out["coverage"]["needs_review"], 1)
+        self.assertEqual([n for n in nodes if n["kind"] == "needs-review"], [])
+        self.assertEqual(out["coverage"]["needs_review"], 0)
         self.assertEqual(out["coverage"]["sections"], 9 + 4 + 6)
-        self.assertIn("DECIDE", out["plan_md"])
+        self.assertNotIn("DECIDE — ", out["plan_md"])   # no residue marker emitted
+        self.assertEqual({o["path"] for o in inv["out_of_scope"]}, {"code/README.md"})
 
     def test_leaf_checklist_closure(self):
         # Every collapsible and every mermaid block lands in exactly one leaf's

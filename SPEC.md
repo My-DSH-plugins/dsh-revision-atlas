@@ -126,9 +126,15 @@ leaf:
 ## 6. Assurance (four parts) — the invariant, see ADR-0001
 
 1. **Inventory closure** (deterministic script): build the file inventory and
-   link graph; every `.md` is `classified` / `ignored` / `needs-review`; an
-   unaccounted file **fails the build**. `handwrittenNotes/`, `scratch/` and
-   similar noise dirs are ignored by an explicit rule, not by default.
+   link graph. A `.md` is **in scope** when it sits *directly under the module
+   path*, or when an in-scope file *links to it* and it lies *inside the module
+   path* — that is the module's own narrative, and nothing else (adr/0006). Every
+   in-scope `.md` is `classified` / `ignored` / `needs-review`; an unaccounted
+   in-scope file **fails the build**. `handwrittenNotes/`, `scratch/` and similar
+   noise dirs are ignored by an explicit rule, not by default. A `.md` that is
+   inside the module but out of scope — a subdirectory's own README that nothing
+   in the narrative cites — is **reported**, never failed: narrowing the scope can
+   reclassify a file, it cannot lose one.
 2. **Plan as contract** (human-approved, before generation): the module plan is
    drafted by the agent as a **human-readable `plan.md`** — headings are the tree, bullets
    are each leaf's checklist — and approved in a **plan stage** with two human

@@ -65,12 +65,15 @@ class TestExtractor(unittest.TestCase):
     def test_m5_closure_counts_and_structure(self):
         inv = extract(M5)
         self.assertEqual(_classified(inv), {"README.md"})
+        # A subdirectory's own README (`code/`) is not part of the module's
+        # narrative: out of scope, reported, and NOT residue to classify.
         self.assertEqual(
-            {f["path"] for f in inv["files"] if f["status"] == "needs_review"},
-            {"code/README.md"},
+            {f["path"] for f in inv["files"] if f["status"] == "needs_review"}, set()
         )
         self.assertEqual(inv["closure"]["unaccounted"], 0)
-        self.assertEqual(inv["closure"]["needs_review"], 1)
+        self.assertEqual(inv["closure"]["needs_review"], 0)
+        self.assertEqual({o["path"] for o in inv["out_of_scope"]}, {"code/README.md"})
+        self.assertEqual(inv["closure"]["out_of_scope"], 1)
 
         by = {f["path"]: f for f in inv["files"]}
         self.assertEqual(by["README.md"]["kind"], "module")
@@ -120,10 +123,27 @@ class TestExtractor(unittest.TestCase):
             },
         )
 
-    def test_closure_matches_independent_walk(self):
+    def test_scope_partitions_every_markdown(self):
+        """In scope + out of scope must still account for every non-noise .md in
+        the module. Narrowing the scope can reclassify a file, never lose one.
+        """
         for root in (M5, M2):
             inv = extract(root)
-            self.assertEqual(_non_ignored(inv), _independent_non_ignored(root))
+            accounted = _non_ignored(inv) | {o["path"] for o in inv["out_of_scope"]}
+            self.assertEqual(accounted, _independent_non_ignored(root))
+
+    def test_only_top_level_and_linked_files_are_in_scope(self):
+        """The module's scope is its own narrative: top-level markdown, plus what
+        that markdown links to inside the module path — nothing else."""
+        inv = extract(M2)
+        self.assertEqual(_classified(inv) | _non_ignored(inv), M2_EXPECTED)
+        # every in-scope file is either top-level or reachable from one that is
+        self.assertTrue(all("/" not in p or p in M2_EXPECTED for p in _non_ignored(inv)))
+        self.assertEqual(inv["out_of_scope"], [])
+
+        m5 = extract(M5)
+        self.assertEqual(_classified(m5), {"README.md"})
+        self.assertTrue(all(len(p.split("/")) > 1 for p in (o["path"] for o in m5["out_of_scope"])))
 
 
 class TestExtractorBehavior(unittest.TestCase):
