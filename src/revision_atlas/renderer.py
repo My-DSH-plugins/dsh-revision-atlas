@@ -11,7 +11,6 @@ the markdown — so the spec, not markmap, is the source of truth (SPEC §10).
 from __future__ import annotations
 
 import argparse
-import base64
 import html as _html
 import json
 import os
@@ -115,67 +114,24 @@ def _content_html(
     return inner
 
 
-def _img_data_uri(svg: str) -> str:
-    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-    return f"data:image/svg+xml;base64,{b64}"
-
-
-def _diagram_node(d: dict) -> dict:
-    """One mermaid diagram slot -> an image-only markmap node (SPEC §10: images
-    survive only as image-only nodes), or a placeholder until rendered."""
-    if d.get("svg"):
-        img = (
-            f'<img src="{_img_data_uri(d["svg"])}" '
-            'style="max-width:280px;background:#fff;border-radius:4px" />'
-        )
-        return {"content": img, "children": []}
-    return {"content": '<span style="color:#8b93a7">[diagram] mermaid — pending</span>', "children": []}
-
-
-def _leaf_artifact_children(node: dict) -> List[dict]:
-    """The artifact surface a leaf shows in the map: recall bullets, diagrams,
-    self-test (prompt + collapsed reveal), and the collapsed source audit."""
-    kids: List[dict] = []
-    for b in node.get("recall", []):
-        kids.append({"content": f"• {_esc(b)}", "children": []})
-    for d in node.get("diagrams", []):
-        kids.append(_diagram_node(d))
-    if node.get("prompt"):
-        inner = (
-            f'<b>self-test</b><div style="color:#8b93a7;font-size:11px">'
-            f"{_esc(node['prompt'])}</div>"
-        )
-        reveal = node.get("reveal", "")
-        if reveal:
-            inner += (
-                '<details style="font-size:11px;margin-top:2px">'
-                "<summary>reveal</summary>"
-                f'<div style="color:#9aa3b2">{_esc(reveal)}</div></details>'
-            )
-        kids.append({"content": inner, "children": []})
-    if node.get("source"):
-        rows = []
-        for it in node["source"]:
-            if isinstance(it, dict):
-                tag = {"details": "[details] ", "mermaid": "[diagram] "}.get(it.get("kind"), "")
-                rows.append(_esc(tag + it.get("text", "")))
-            else:
-                rows.append(_esc(it))
-        src_html = "<br>".join(rows)
-        kids.append({
-            "content": (
-                f'<details style="font-size:11px;color:#9aa3b2">'
-                f"<summary>source ({len(node['source'])})</summary>"
-                f"<div>{src_html}</div></details>"
-            ),
-            "children": [],
-        })
-    return kids
-
-
 def build_markmap_tree(
     spec: dict, leaves_prefix: "Optional[str]" = None, source_base: str = ""
 ) -> dict:
+    """The module's STRUCTURE — and nothing else.
+
+    A leaf used to fan out into its recall bullets, its diagrams, its self-test
+    prompt and its source audit. That was a degraded second copy of the notebook:
+    unstyled, unpaginated, with the question but never the answer, and it made the
+    map end in bullet lists instead of leaves. The notebook is where a leaf's
+    content lives (SPEC §9); the map's job is the outline and the way in, so every
+    node — parent or leaf — carries a title, its kind, its source anchor and its
+    `notebook` link.
+
+    Measured consequence: the map no longer inlines each leaf's diagram as a base64
+    data URI — ~22 KB per diagram (a 17 KB SVG), so ~130 KB for a six-diagram
+    module. The map's own bulk is the vendored d3 + markmap libraries (~300 KB,
+    constant), so that is a saving rather than the main event.
+    """
     def convert(node: dict) -> dict:
         mn = {"content": _content_html(node, leaves_prefix, source_base)}
         children: List[dict] = []
@@ -183,8 +139,6 @@ def build_markmap_tree(
             children.append(convert(b))
         for c in node.get("children", []):
             children.append(convert(c))
-        if node.get("checklist") is not None:
-            children.extend(_leaf_artifact_children(node))
         if children:
             mn["children"] = children
         return mn

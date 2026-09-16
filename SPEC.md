@@ -343,3 +343,11 @@ replicate.
 Open: OG-image pipeline; the eventual publish step into the portfolio repo;
 whether `needs-review` blocks or merely annotates in v1; whether the two
 plan gates are one combined approval step or two separate ones.
+
+- **The map is structure; the notebook is the leaf.** A node never carries a
+  leaf's content — no recall bullets, no prompt, no source audit, no inline
+  diagram. That was a degraded second copy of the notebook (unstyled,
+  unpaginated, question without answer) and it made the map end in bullet lists
+  instead of leaves. Every node, parent or leaf, shows a title, its kind, its
+  source anchor and the link into its notebook. The map is the outline and the
+  way in; content has exactly one home.

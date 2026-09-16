@@ -380,3 +380,31 @@ details summary { cursor: pointer; color: var(--accent); }
   font-size: calc(var(--ink-size) * 0.76);
   color: #8b93a7;
 }
+
+/* --- the way back to the map ------------------------------------------------
+ * A notebook is a leaf OF the module map. It carried no route home — its only
+ * hrefs were its own stylesheets — so a reader who arrived from a bookmark, a
+ * shared link or a fresh tab had nothing to click and no way to see where this
+ * leaf sat in the module. Offered on the front cover (first thing seen) and on
+ * the back cover (where the reader ends up). It sits in the cover's own padding,
+ * clear of the centred title block, and StPageFlip leaves clicks on <a> alone
+ * (`clickEventForward`), so it navigates rather than turning the page.
+ */
+.page-cover .cover-nav {
+  position: absolute;
+  top: calc(var(--page-h) * 0.088);
+  left: calc(var(--page-w) * 0.085);
+  font-size: calc(var(--ink-size) * 0.84);
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  padding-bottom: 1px;
+}
+.page-cover .cover-nav:hover {
+  color: #fff;
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+}
+.page-cover .cover-nav.back {
+  top: auto;
+  bottom: calc(var(--page-h) * 0.088);
+}

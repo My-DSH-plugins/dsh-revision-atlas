@@ -91,12 +91,28 @@ def _anchor_html(node: dict) -> str:
     return f'<div class="anchor">{_esc(label)}</div>'
 
 
-def _cover_html(node: dict) -> str:
+def _cover_nav(map_href: str, back: bool = False) -> str:
+    """The way home.
+
+    A notebook is a leaf OF the map, and there was no route back to it: the only
+    hrefs a notebook carried were its own stylesheets, so opening one from a
+    bookmark, a shared link or a fresh tab left the reader with nothing to click
+    and no way to see where the leaf sat. On the front cover so it is the first
+    thing offered, and on the back cover so it is where the reader ends up.
+    """
+    if not map_href:
+        return ""
+    cls = "cover-nav back" if back else "cover-nav"
+    return f'<a class="{cls}" href="{_esc(map_href)}">&larr; module map</a>'
+
+
+def _cover_html(node: dict, map_href: str = "") -> str:
     kind = _esc(node.get("kind", ""))
     # The flex container is an INNER element, never the .page itself: StPageFlip
     # sets display:block on the page element, which silently overrides it.
     return (
-        '<div class="cover-body">'
+        _cover_nav(map_href)
+        + '<div class="cover-body">'
         f"<h1>{_esc(node['title'])}</h1>"
         f'<div class="muted">revision leaf · {kind}</div>'
         f"{_anchor_html(node)}"
@@ -104,13 +120,14 @@ def _cover_html(node: dict) -> str:
     )
 
 
-def _back_cover_html(node: dict) -> str:
+def _back_cover_html(node: dict, map_href: str = "") -> str:
     return (
         '<div class="cover-body">'
         f"<h1>{_esc(node['title'])}</h1>"
         '<div class="muted">— end of leaf —</div>'
         f"{_anchor_html(node)}"
         "</div>"
+        + _cover_nav(map_href, back=True)
     )
 
 
@@ -239,14 +256,14 @@ def _source_html(items: List[dict], title: str = "Source audit") -> str:
     return f'<h2>{_esc(title)}</h2><div class="source">{rows}</div>'
 
 
-def _pages(node: dict) -> List[Tuple[str, str, str]]:
+def _pages(node: dict, map_href: str = "") -> List[Tuple[str, str, str]]:
     """Return (density, extra-class, inner-html) pages in flip order.
 
     A notebook opens and closes on its covers: a hard front cover and a hard back
     cover, each shown alone, centred. The content between them is a soft two-page
     spread. Soft content pages keep forward/backward flips mirrored.
     """
-    pages: List[Tuple[str, str, str]] = [("hard", "page-cover", _cover_html(node))]
+    pages: List[Tuple[str, str, str]] = [("hard", "page-cover", _cover_html(node, map_href))]
     if node.get("recall"):
         pages.append(("soft", "", _recall_html(node)))
     for d in node.get("diagrams", []):
@@ -275,7 +292,7 @@ def _pages(node: dict) -> List[Tuple[str, str, str]]:
     content = len(pages) - 1
     if content and content % 2 == 0:
         pages.insert(1, ("soft", "", ""))
-    pages.append(("hard", "page-cover", _back_cover_html(node)))
+    pages.append(("hard", "page-cover", _back_cover_html(node, map_href)))
     return pages
 
 
@@ -293,12 +310,21 @@ def _asset_version() -> str:
     return h.hexdigest()[:8]
 
 
-def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
-    """Render one leaf to a self-contained flip-notebook HTML string."""
+def render_notebook(
+    node: dict,
+    assets_rel: str = "../../../assets",
+    map_href: str = "../../index.html",
+) -> str:
+    """Render one leaf to a self-contained flip-notebook HTML string.
+
+    `map_href` is the path back to the module map — the leaf's parent surface. It
+    defaults to the §13 depth (`leaves/<leaf-id>/notebook.html` → `../../`), and
+    an empty string drops the link.
+    """
     title = _esc(node["title"])
     ver = _asset_version()
     page_divs = []
-    for density, extra, inner in _pages(node):
+    for density, extra, inner in _pages(node, map_href):
         cls = "page" + (f" {extra}" if extra else "")
         dattr = ' data-density="hard"' if density == "hard" else ""
         page_divs.append(f'<div class="{cls}"{dattr}>{inner}</div>')

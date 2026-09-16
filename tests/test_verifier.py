@@ -30,12 +30,21 @@ The body of the collapsible.
 
 
 def _build(root: Path, readme: str = READ_ME, semantic=None, recall=None):
+    """A complete §13 tree: notebooks AND the map they link back to."""
+    from revision_atlas.renderer import render_map, source_base_for
+
     (root / "README.md").write_text(readme, encoding="utf-8")
     inv = extract(root)
     spec = build_structure(inv, semantic=semantic, recall=recall)["spec"]
     annotate_artifacts(inv, spec["root"])
     out = root / "out"
     generate_all(inv, spec, str(out))
+    module_out = out / root.name
+    (module_out / "index.html").write_text(
+        render_map(spec, leaves_prefix="leaves",
+                   source_base=source_base_for(str(root), module_out)),
+        encoding="utf-8",
+    )
     return inv, spec, out
 
 
