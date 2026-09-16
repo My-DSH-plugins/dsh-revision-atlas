@@ -228,6 +228,10 @@ leaf:
   half-clipped when asked for is exactly that.
 - **Flip interaction**: touch drag/swipe with hard/soft cover feel; candidate
   StPageFlip (vanilla, offline, mobile); hand-rolled CSS 3D as fallback.
+- **Page titles** are reader-facing, not stage names: the last pages of a leaf
+  render as **Bibliography** and **Bibliography (cont. n/N)**. The stage that
+  produces them is still the source audit — the title is the notebook's register,
+  not the pipeline's.
 - **Pages are HTML fragments**, not raster images — so they stay crisp at any
   zoom, the verifier can parse them, and size stays small.
 - **Shared assets**: one handwriting font + flip JS + theme per module under

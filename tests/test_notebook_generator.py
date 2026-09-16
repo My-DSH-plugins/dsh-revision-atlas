@@ -97,7 +97,7 @@ class TestPages(unittest.TestCase):
         self.assertTrue(all(d == "soft" for d in densities[1:-1]))
         # one page per content block, in order
         html = "".join(inner for _, _, inner in pages)
-        for label in ("Recall", "Diagram", "Self-test", "Source audit"):
+        for label in ("Recall", "Diagram", "Self-test", "Bibliography"):
             self.assertIn(label, html)
         classes = [c for _, c, _ in pages]
         self.assertEqual(classes[0], "page-cover")    # front cover leads
@@ -118,7 +118,7 @@ class TestPages(unittest.TestCase):
         content = pages[1:-1]
         self.assertEqual(len(content) % 2, 1, [c for _, c, _ in pages])
         self.assertEqual(content[0][2], "", "the flyleaf leads the content")
-        self.assertIn("Source audit", content[-1][2])       # ...and the audit closes it
+        self.assertIn("Bibliography", content[-1][2])         # ...and the audit closes it
         self.assertEqual([d for d, _, _ in content], ["soft"] * len(content))
 
     def test_an_odd_content_leaf_gets_no_flyleaf(self):
@@ -139,7 +139,7 @@ class TestRenderNotebook(unittest.TestCase):
         self.assertIn("St.PageFlip", html)
         self.assertIn("1. Hallucination &amp; confabulation", html)  # escaped title
         self.assertIn("Reveal answer", html)
-        self.assertIn("Source audit", html)
+        self.assertIn("Bibliography", html)
         # notebook geometry: hard covers shown alone and centred, two-page spread
         # between them, and click-anywhere flipping disabled
         self.assertIn("showCover: true", html)

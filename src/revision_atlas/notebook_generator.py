@@ -251,7 +251,7 @@ def _source_row(item: dict) -> str:
     return f'<div>{_md_inline(_BULLET.sub("", text))}</div>'
 
 
-def _source_html(items: List[dict], title: str = "Source audit") -> str:
+def _source_html(items: List[dict], title: str = "Bibliography") -> str:
     rows = "".join(_source_row(i) for i in items)
     return f'<h2>{_esc(title)}</h2><div class="source">{rows}</div>'
 
@@ -276,7 +276,8 @@ def _pages(node: dict, map_href: str = "") -> List[Tuple[str, str, str]]:
     if src:
         chunks = _chunk_source(src)
         for i, chunk in enumerate(chunks):
-            title = "Source audit" if i == 0 else f"Source audit (cont. {i + 1}/{len(chunks)})"
+            # the PAGE title only — the stage is still the source audit
+            title = "Bibliography" if i == 0 else f"Bibliography (cont. {i + 1}/{len(chunks)})"
             pages.append(("soft", "", _source_html(chunk, title)))
     # A real book ends on a paired spread. StPageFlip's `createSpread()` shows the
     # front cover alone and then pairs from index 1 — (1,2), (3,4), … — so the back
