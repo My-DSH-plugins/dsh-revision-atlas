@@ -139,12 +139,15 @@ body {
   overflow: hidden;
 }
 
-/* the red margin rule — page top down to the bottom margin */
+/* The red margin rule runs the FULL height of the page — top edge to bottom edge,
+   as on real ruled paper (measured in the reference: red 121..614, paper
+   120..614, i.e. it meets the bottom exactly). Only the ruling is bounded by the
+   margins; the margin rule is not. */
 .page::before {
   content: "";
   position: absolute;
   top: 0;
-  bottom: var(--margin-bottom);
+  bottom: 0;
   left: var(--margin-left);
   width: 1.5px;
   background: var(--margin-rule);
