@@ -97,8 +97,9 @@ body {
     transparent var(--rule-at),
     transparent var(--line)
   );
-  background-origin: content-box;
-  background-clip: content-box;
+  background-origin: content-box, border-box;
+  background-clip: content-box, border-box;   /* rules clipped to the content box;
+                                                 the PAPER itself fills the page */
   padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
   font-size: var(--ink-size);
   line-height: var(--line);
@@ -140,6 +141,10 @@ body {
 .page-cover {
   background-image: none;
   background-color: var(--accent);
+  background-clip: border-box;   /* the cover colour fills the WHOLE page — without
+                                    this it is clipped to the content box, so the
+                                    page padding shows through and the title looks
+                                    flush against the blue edge */
   color: #fff;
   padding: calc(var(--page-h) * 0.088) calc(var(--page-w) * 0.085);
 }
@@ -160,7 +165,7 @@ body {
 .page-cover .anchor { color: rgba(255, 255, 255, 0.6); }
 
 /* --- diagram: plain paper, so the SVG reads cleanly over it --------------- */
-.page-diagram { background-image: none; }
+.page-diagram { background-image: none; background-clip: border-box; }
 .page-diagram::before { display: none; }
 .page-diagram .diagram svg { max-width: 100%; height: auto; display: block; }
 
