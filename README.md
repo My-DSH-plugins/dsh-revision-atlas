@@ -76,3 +76,7 @@ Roadmap:
   model, offline packaging, skill interface.
 - [`adr/0001-coverage-invariant.md`](adr/0001-coverage-invariant.md) — the decision
   behind the coverage invariant.
+- [`adr/0002-mermaid-rendering.md`](adr/0002-mermaid-rendering.md) — mermaid is
+  rendered to SVG at build time, not in the viewer.
+- [`adr/0003-diagram-kind-classifier.md`](adr/0003-diagram-kind-classifier.md) — a
+  leaf's diagram kind is content-driven (mermaid vs hand-drawn vs none).

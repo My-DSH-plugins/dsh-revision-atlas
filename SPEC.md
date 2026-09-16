@@ -173,9 +173,10 @@ leaf:
 - **Budgets**: recall block 3–5 bullets ≤60 words; notebook pages by checklist
   size (§9); a leaf holds a **list of diagrams** — never two drawings of the
   same structure, but an array when the leaf legitimately has several.
-- **Diagram — content-driven, not a blanket rule**:
-  - default `kind: handdrawn` — a hand-drawn flowchart/sketch in the notebook's
-    visual language (memory + coherent look);
+- **Diagram — content-driven, not a blanket rule** (see adr/0003):
+  - residual `kind: handdrawn` — the catch-all: a hand-drawn flowchart/sketch in
+    the notebook's visual language (memory + coherent look), chosen when no
+    source mermaid block and no gated exactness upgrade applies;
   - `kind: mermaid` only when (a) the source already contains a ` ```mermaid `
     block — extract and render, near-zero cost — or (b) the content is a decision
     procedure / state machine / multi-branch sequence whose exact branching
