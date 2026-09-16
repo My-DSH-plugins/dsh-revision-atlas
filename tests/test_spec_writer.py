@@ -161,6 +161,20 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("```mermaid", out["plan_md"])
         self.assertIn("A[Plausibility] --> B[Wrong]", out["plan_md"])
 
+    def test_leaf_dir_id_is_derived_from_the_id_not_a_position(self):
+        # SPEC §13: `leaves/<leaf-id>/`. A position would re-point every link
+        # below an inserted section at a different leaf (ticket 0011).
+        from revision_atlas.spec_writer import leaf_dir_id
+
+        self.assertEqual(leaf_dir_id({"id": "section-one"}), "section-one")
+        self.assertEqual(leaf_dir_id({"title": "Some Heading"}), "some-heading")
+
+        # A long heading stays a valid path component and stays unique to its id.
+        name = leaf_dir_id({"id": "x" * 200})
+        self.assertEqual(len(name), 80)
+        self.assertNotEqual(name, leaf_dir_id({"id": "x" * 199}))
+        self.assertTrue(name.startswith("x" * 71))   # still recognisable
+
     def test_duplicate_title_leaves_get_distinct_keys(self):
         # M5 has two leaves titled "Deriving the baseline and thresholds."
         # (README lines 157 volume-based and 767 per-column). The old title-keyed

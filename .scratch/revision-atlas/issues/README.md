@@ -14,6 +14,7 @@ Tracer-bullet tickets, worked blockers-first (extractor → everything else).
 | [0008](0008-unique-leaf-keys.md) | Unique leaf keys (dup-title collision) | 0003, 0007 | — |
 | [0009](0009-build-writes-the-map.md) | `build` writes the map (§13) | 0004, 0006 | — |
 | [0010](0010-reveal-clips-on-the-page.md) | A long reveal is clipped by the page | 0006, recall pass | — |
+| [0011](0011-the-map-reaches-the-notebooks.md) | The map reaches the notebooks (and resolves) | 0004, 0006, 0008 | — |
 
 Open decisions that gate a specific ticket are noted in that ticket's file. The
 two that gate later work: **flip implementation** (0006) and the **diagram-kind

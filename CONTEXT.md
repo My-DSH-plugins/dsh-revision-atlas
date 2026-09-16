@@ -26,6 +26,13 @@ _Avoid_: source tree, content
 The terminal node of a branch — one compacted revision unit.
 _Avoid_: note, card, section
 
+**Leaf id**:
+A leaf's unique, heading-derived identity: the source-anchor fragment, the
+artifact directory (`leaves/<leaf-id>/`), and the key every agent pass maps by.
+A function of the heading, never of the leaf's position — an index re-points every
+link below an inserted section.
+_Avoid_: leaf number, index, slug
+
 **Recall block**:
 A leaf's memory hooks: 3–5 bullets, ≤60 words total.
 _Avoid_: summary, abstract
@@ -97,3 +104,11 @@ The verification axis that asks whether a claim is *faithful* to the source —
 read by the LLM critic, which flags drift. Semantic; the critic's job, never the
 deterministic axis's.
 _Avoid_: accuracy, correctness, grounding
+
+**Links**:
+The verification axis that asks whether every `href` in the map and in every
+notebook *resolves* from the file that carries it. A link inside the artifact tree
+is a build promise (a break is a failure); a link out to the module markdown is a
+deployment fact (ship beside the source, or it is `needs-review`). Resolution only
+— a fragment is a jump target, not a resource.
+_Avoid_: anchors, references

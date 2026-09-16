@@ -31,15 +31,17 @@ from __future__ import annotations
 import argparse
 import html as _html
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
+from urllib.parse import unquote
 
 from .extractor import extract
 from .notebook_generator import iter_leaves
-from .spec_writer import leaf_range
+from .spec_writer import leaf_dir_id, leaf_range
 
 # The only lexical test on the deterministic axis is a FLOOR, never a similarity
 # threshold. Grounding is structural (SPEC §6.4b): a claim traces to a REAL SOURCE
@@ -158,8 +160,11 @@ class Report:
         return "\n".join(out)
 
 
-def _leaf_artifact(module_dir: Path, i: int) -> Path:
-    return module_dir / "leaves" / f"leaf-{i:03d}" / "notebook.html"
+def _leaf_artifact(module_dir: Path, leaf: dict) -> Path:
+    """Where a leaf's notebook lives — the same id-derived name `generate_all`
+    writes (§13 `leaves/<leaf-id>/`), so the checker and the generator cannot
+    disagree about which leaf a directory belongs to."""
+    return module_dir / "leaves" / leaf_dir_id(leaf) / "notebook.html"
 
 
 def _check_closure(inv: dict, rep: Report) -> None:
@@ -187,22 +192,22 @@ def _check_artifacts(module_dir: Path, leaves: List[dict], rep: Report) -> None:
             "failure", "artifact", str(module_dir / "spec.json"),
             "no spec.json next to the notebooks — the frozen contract is missing",
         ))
-    for i, leaf in enumerate(leaves):
-        p = _leaf_artifact(module_dir, i)
+    for leaf in leaves:
+        p = _leaf_artifact(module_dir, leaf)
         if not p.exists():
             rep.findings.append(Finding(
                 "failure", "artifact", leaf["title"], f"no notebook at {p}",
             ))
     rep.stats["artifacts"] = sum(
-        1 for i in range(len(leaves)) if _leaf_artifact(module_dir, i).exists()
+        1 for leaf in leaves if _leaf_artifact(module_dir, leaf).exists()
     )
 
 
 def _check_coverage(module_dir: Path, leaves: List[dict], rep: Report) -> None:
     """Each leaf's mechanical checklist items must be present in its artifact."""
     total = covered = 0
-    for i, leaf in enumerate(leaves):
-        p = _leaf_artifact(module_dir, i)
+    for leaf in leaves:
+        p = _leaf_artifact(module_dir, leaf)
         missed: List[str] = []
         if p.exists():
             markup = p.read_text(encoding="utf-8")
@@ -301,8 +306,8 @@ _EXTERNAL = re.compile(r'(?:src|href)\s*=\s*["\'](https?:)?//', re.I)
 
 def _check_offline(module_dir: Path, leaves: List[dict], rep: Report) -> None:
     """An artifact must not load anything off the network (offline = online)."""
-    for i, leaf in enumerate(leaves):
-        p = _leaf_artifact(module_dir, i)
+    for leaf in leaves:
+        p = _leaf_artifact(module_dir, leaf)
         if not p.exists():
             continue
         for m in _EXTERNAL.finditer(p.read_text(encoding="utf-8")):
@@ -312,10 +317,62 @@ def _check_offline(module_dir: Path, leaves: List[dict], rep: Report) -> None:
             ))
 
 
+_HREF = re.compile(r'href=\\?["\']([^"\'\\]+)\\?["\']')
+
+
+def _check_links(module_dir: Path, out_root: Path, leaves: List[dict], rep: Report) -> None:
+    """Every href resolves from the file that carries it (§14: broken anchors).
+
+    The map is the surface a reader navigates, and a link that 404s is invisible
+    until someone clicks it — this is the check that catches exactly that. It
+    asserts resolution, not the fragment: a wrong `#anchor` still opens the right
+    file, and GitHub's own slug rule is not ours to replicate.
+
+    Two levels, because the two kinds of link fail for different reasons. A link
+    inside the artifact tree (a leaf's notebook, the shared assets) is the build's
+    own promise, so breaking it is a FAILURE. A link out to the module markdown
+    can only resolve when the tree ships beside its source — the §13 layout does,
+    a bare copy of `mindmaps/` does not — so that is a deployment note, not a
+    broken build.
+    """
+    pages = [module_dir / "index.html"] + [
+        _leaf_artifact(module_dir, leaf) for leaf in leaves
+    ]
+    root = out_root.resolve()
+    seen = set()
+    for page in pages:
+        if not page.exists():
+            continue
+        here = page.parent
+        for href in _HREF.findall(page.read_text(encoding="utf-8")):
+            key = (str(page), href)
+            if key in seen or href.startswith(("http://", "https://", "//", "data:", "mailto:", "#")):
+                continue
+            seen.add(key)
+            # `path?query#frag` — the shared assets carry a content-hash cache
+            # buster, and the fragment is never part of the path on disk
+            path = unquote(href.partition("#")[0].partition("?")[0])
+            if not path or (here / path).exists():
+                continue
+            target = (here / path).resolve()
+            inside = str(target).startswith(str(root) + os.sep)
+            label = page.name if page.parent == module_dir else f"{page.parent.name}/{page.name}"
+            rep.findings.append(Finding(
+                "failure" if inside else "needs-review",
+                "links",
+                f"{label} → {href}",
+                "a link inside the artifact tree does not resolve"
+                if inside
+                else "source link does not resolve from here — the map is built for "
+                "the §13 layout (mindmaps/<slug>/ beside modules/<slug>/); ship the "
+                "source beside it, or rebuild with --source-base",
+            ))
+
+
 def _check_labels(module_dir: Path, leaves: List[dict], rep: Report) -> None:
     """Diagrams carry real, non-empty <text> labels (§6.4: read the text, no VLM)."""
-    for i, leaf in enumerate(leaves):
-        p = _leaf_artifact(module_dir, i)
+    for leaf in leaves:
+        p = _leaf_artifact(module_dir, leaf)
         if not p.exists():
             continue
         markup = p.read_text(encoding="utf-8")
@@ -355,6 +412,7 @@ def verify(inv: dict, spec: dict, out_root: str, critic: "Optional[dict]" = None
     _check_grounding(inv, leaves, rep)
     _check_anchors(inv, leaves, rep)
     _check_offline(module_dir, leaves, rep)
+    _check_links(module_dir, Path(out_root), leaves, rep)
     _check_labels(module_dir, leaves, rep)
     _merge_critic(critic, rep)
     return rep

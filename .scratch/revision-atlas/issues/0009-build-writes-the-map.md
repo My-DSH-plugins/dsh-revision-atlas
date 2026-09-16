@@ -26,3 +26,9 @@ M5 end-to-end: `05-data-engineering-2/` now holds `index.html`, `leaves/`,
 `plan.md`, `spec.json`; the map carries each leaf's own recall (the volume leaf
 and the per-column leaf render different blocks). Verifier still **PASS**, exit 0;
 56 tests green.
+
+**Not sufficient — see [0011](0011-the-map-reaches-the-notebooks.md).** Writing the
+file made the map *exist*; it did not make it *work*. It linked to no notebook, and
+every source href in it was dangling (20 of 20). "The artifact is produced" and "the
+artifact is navigable" are two different claims, and this ticket only earned the
+first one.

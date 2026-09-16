@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 from .extractor import extract
 from .leaf_generator import annotate_artifacts
 from .mermaid_render import render_leaf_mermaids
-from .spec_writer import build_structure
+from .spec_writer import build_structure, leaf_dir_id
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -352,8 +352,11 @@ def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
     module_dir = Path(out_root) / module_slug
     leaves = [n for n in iter_leaves(spec["root"]) if "checklist" in n]
     written: List[Path] = []
-    for i, leaf in enumerate(leaves):
-        leaf_dir = module_dir / "leaves" / f"leaf-{i:03d}"
+    for leaf in leaves:
+        # SPEC §13: `leaves/<leaf-id>/` — the id, not a position. Both the map
+        # and the notebook resolve the same name, so inserting a section above a
+        # leaf cannot silently re-point a link at a different leaf.
+        leaf_dir = module_dir / "leaves" / leaf_dir_id(leaf)
         leaf_dir.mkdir(parents=True, exist_ok=True)
         out = leaf_dir / "notebook.html"
         out.write_text(render_notebook(leaf), encoding="utf-8")

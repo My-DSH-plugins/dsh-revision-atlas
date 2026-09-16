@@ -60,4 +60,7 @@ coupling.
   would force `[source | back cover]`; decide whether to add it.
 - **Responsive sizing** — the flip uses a fixed 520×680; consider `size: "stretch"`.
 - **Pan/zoom on the diagram page** — inline mermaid SVG is static.
-- **Leaf-id scheme** — currently `leaf-NNN` (pre-order).
+- ~~**Leaf-id scheme** — currently `leaf-NNN` (pre-order).~~ **Resolved** — the
+  directory is now the leaf's unique id (`leaves/<leaf-id>/`, SPEC §13): stable
+  across an inserted section, and the same string the map links to and the agent
+  passes key by. See [0011](0011-the-map-reaches-the-notebooks.md).

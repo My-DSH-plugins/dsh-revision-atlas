@@ -1,12 +1,14 @@
 """Acceptance tests for ticket 0007 (verifier + coverage report)."""
 import json
+import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from revision_atlas.extractor import extract
 from revision_atlas.leaf_generator import annotate_artifacts
-from revision_atlas.notebook_generator import generate_all
+from revision_atlas.notebook_generator import generate_all, iter_leaves
 from revision_atlas.spec_writer import build_structure
 from revision_atlas.verifier import verify
 
@@ -45,8 +47,8 @@ def _artifacts(out: Path, root: Path) -> Path:
 def _corrupt_all(out: Path, root: Path, old: str, new: str) -> None:
     """Rewrite every notebook carrying `old`.
 
-    Indexing into the leaf list is a trap: leaf-000 is the module ROOT, whose
-    range correctly owns no collapsible — corrupting only that one proves nothing.
+    Indexing into the leaf list is a trap: the FIRST leaf is the module ROOT,
+    whose range correctly owns no collapsible — corrupting only that proves nothing.
     """
     n = 0
     for nb in _artifacts(out, root).glob("*/notebook.html"):
@@ -240,6 +242,84 @@ class TestBuildPipeline(unittest.TestCase):
             self.assertTrue(map_html.exists())
             self.assertIn("<svg", map_html.read_text(encoding="utf-8"))
 
+    def _built(self, td: str):
+        """Build one module in the §13 layout: mindmaps/ beside modules/."""
+        from revision_atlas.build import build
+
+        base = Path(td)
+        root = base / "modules" / "demo"
+        root.mkdir(parents=True)
+        (root / "README.md").write_text(READ_ME, encoding="utf-8")
+        spec, written, rep = build(str(root), str(base / "mindmaps"))
+        return base, root, spec, rep
+
+    def test_the_map_links_every_leaf_and_every_link_resolves(self):
+        # The notebooks are the artifact; the map is how a reader reaches them.
+        # Before this, the map linked to nothing and every source href was a bare
+        # `README.md#…`, which does not sit next to the map (ticket 0011).
+        with tempfile.TemporaryDirectory() as td:
+            base, root, spec, rep = self._built(td)
+            self.assertTrue(rep.ok(), rep.render())
+            module_out = base / "mindmaps" / "demo"
+            map_html = module_out / "index.html"
+            hrefs = set(
+                re.findall(r'href=\\?"([^"\\]+)\\?"', map_html.read_text(encoding="utf-8"))
+            )
+
+            for leaf in [n for n in iter_leaves(spec["root"]) if "checklist" in n]:
+                self.assertIn(f"leaves/{leaf['id']}/notebook.html", hrefs)
+
+            for href in hrefs:
+                target = map_html.parent / href.split("#")[0].split("?")[0]
+                self.assertTrue(target.exists(), f"{href} does not resolve from the map")
+
+            # §13 names leaf dirs by id — never by position
+            leaf_dirs = sorted(p.name for p in (module_out / "leaves").iterdir())
+            self.assertEqual(leaf_dirs, ["mod", "section-one"])
+
+    def test_a_leaf_dir_survives_an_inserted_section(self):
+        # A position-based dir (`leaf-001`) shifts the moment a section is added
+        # above it, silently re-pointing every existing link at another leaf.
+        with tempfile.TemporaryDirectory() as td:
+            base, root, spec, rep = self._built(td)
+            before = (base / "mindmaps" / "demo" / "leaves" / "section-one" / "notebook.html")
+            self.assertTrue(before.exists())
+
+            (root / "README.md").write_text(
+                "# Mod\n\n## A brand new section\n\nNew prose.\n\n" + READ_ME.split("\n", 2)[2],
+                encoding="utf-8",
+            )
+            from revision_atlas.build import build
+
+            build(str(root), str(base / "mindmaps"))
+            self.assertTrue(before.exists(), "inserting a section renamed an existing leaf")
+
+    def test_a_broken_map_link_is_a_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            base, root, spec, rep = self._built(td)
+            map_html = base / "mindmaps" / "demo" / "index.html"
+            map_html.write_text(
+                map_html.read_text(encoding="utf-8").replace(
+                    "leaves/mod/notebook.html", "leaves/nope/notebook.html"
+                ),
+                encoding="utf-8",
+            )
+            rep2 = verify(extract(root), spec, str(base / "mindmaps"))
+            self.assertFalse(rep2.ok())
+            self.assertTrue(any(f.check == "links" for f in rep2.failures), rep2.render())
+
+    def test_source_links_off_the_tree_are_a_note_not_a_failure(self):
+        # A bare copy of `mindmaps/` — a portfolio site with no course repo around
+        # it — still ships: the source anchors cannot resolve there, but the
+        # artifact itself is intact, so that is needs-review, not a broken build.
+        with tempfile.TemporaryDirectory() as td:
+            base, root, spec, rep = self._built(td)
+            os.rename(base / "modules", base / "modules-moved")
+            rep2 = verify(extract(base / "modules-moved" / "demo"), spec, str(base / "mindmaps"))
+            self.assertTrue(rep2.ok(), rep2.render())
+            self.assertTrue(any(f.check == "links" for f in rep2.needs_review))
+            self.assertFalse([f for f in rep2.failures if f.check == "links"])
+
     def test_build_merges_the_agent_passes(self):
         from revision_atlas.build import build
 
@@ -254,7 +334,7 @@ class TestBuildPipeline(unittest.TestCase):
             )
             self.assertTrue(rep.ok())                                # critic annotates only
             self.assertTrue(any(f.check == "critic" for f in rep.needs_review))
-            # leaf-000 is the module ROOT; the recall lands on "Section one"
+            # the module ROOT is the first leaf; the recall lands on "Section one"
             all_html = "".join(
                 p.read_text(encoding="utf-8")
                 for p in (root / "mindmaps" / root.name / "leaves").glob("*/notebook.html")

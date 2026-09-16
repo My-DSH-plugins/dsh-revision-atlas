@@ -28,7 +28,7 @@ from .extractor import extract
 from .leaf_generator import annotate_artifacts
 from .mermaid_render import render_leaf_mermaids
 from .notebook_generator import generate_all
-from .renderer import render_map
+from .renderer import render_map, source_base_for
 from .spec_writer import build_structure
 from .verifier import verify
 
@@ -46,8 +46,14 @@ def build(
     recall: "Optional[dict]" = None,
     mermaid: "Optional[dict]" = None,
     critic: "Optional[dict]" = None,
+    source_base: "Optional[str]" = None,
 ):
-    """Run the whole pipeline for one module. Returns (spec, written, report)."""
+    """Run the whole pipeline for one module. Returns (spec, written, report).
+
+    `source_base` is the path from the map back to the module markdown; by
+    default it is derived from `module_dir` and the map's own location, which is
+    what the §13 layout (`mindmaps/<slug>/` beside `modules/<slug>/`) implies.
+    """
     inv = extract(module_dir)
     planned = build_structure(inv, semantic=semantic, recall=recall, mermaid=mermaid)
     spec = planned["spec"]
@@ -58,7 +64,14 @@ def build(
 
     # §13: the module dir holds the map, the review plan, and the spec
     module_out = Path(out_root) / Path(inv["root"]).name
-    (module_out / "index.html").write_text(render_map(spec), encoding="utf-8")
+    (module_out / "index.html").write_text(
+        render_map(
+            spec,
+            leaves_prefix="leaves",
+            source_base=source_base_for(module_dir, module_out, source_base),
+        ),
+        encoding="utf-8",
+    )
     (module_out / "plan.md").write_text(planned["plan_md"], encoding="utf-8")
 
     rep = verify(inv, spec, out_root, critic=critic)
@@ -73,6 +86,12 @@ def main(argv: "List[str] | None" = None) -> int:
     ap.add_argument("--recall", help="JSON: leaf id -> {recall,prompt,reveal}")
     ap.add_argument("--mermaid", help="JSON: leaf id -> [.mmd sources]")
     ap.add_argument("--critic", help="JSON: leaf id -> [{detail}]")
+    ap.add_argument(
+        "--source-base",
+        default=None,
+        help="path from the map back to the module markdown (default: derived "
+        "from the layout; set it if the artifact tree ships without the source)",
+    )
     ap.add_argument("--json", help="also write the verification report here")
     args = ap.parse_args(argv)
 
@@ -83,6 +102,7 @@ def main(argv: "List[str] | None" = None) -> int:
         recall=_load(args.recall),
         mermaid=_load(args.mermaid),
         critic=_load(args.critic),
+        source_base=args.source_base,
     )
     # the artifact dir is named for the MODULE DIRECTORY (§13), not the module's
     # display title — `spec["module"]` is the title and would name a dir that

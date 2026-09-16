@@ -14,9 +14,11 @@ can name every item and still misstate one, and only a reader catches that.
 - `<SPEC>` — the module's `spec.json` (in the generated artifact tree). Every node
   with a `checklist` key is a leaf; each leaf has `id` (unique — **this is your map
   key**), `title` (human-readable, may repeat), `file`, `line`.
-- `<NOTEBOOKS>` — the generated notebooks, one per leaf, in the same leaf order as
-  `<SPEC>` (`leaves/leaf-000/notebook.html`, `leaf-001`, …). Read them as **text**:
-  HTML, and SVG `<text>` labels. Never a screenshot, never a raster.
+- `<NOTEBOOKS>` — the generated notebooks, one per leaf, at
+  `leaves/<leaf-id>/notebook.html` — the directory is the leaf's own `id`, so a
+  notebook is found by taking the `id` off the leaf you are checking (never by
+  position). Read them as **text**: HTML, and SVG `<text>` labels. Never a
+  screenshot, never a raster.
 
 ## Task
 

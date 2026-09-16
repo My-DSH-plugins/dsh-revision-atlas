@@ -13,6 +13,7 @@ function returns; nothing here generates any leaf artifact.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -156,6 +157,27 @@ def _dedupe_ids(root: dict) -> dict:
 
     walk(root)
     return root
+
+
+_LEAF_DIR_MAX = 80
+
+
+def leaf_dir_id(node: dict) -> str:
+    """The directory name a leaf's artifacts live under (SPEC §13: `leaves/<leaf-id>/`).
+
+    Derived from the vetted unique `id`, never from the leaf's position: a
+    positional index (`leaf-003`) shifts the moment a section is inserted above
+    it, and every link, bookmark and `refresh-stale-leaves` lookup would then
+    quietly point at a different leaf. The id is stable as long as the heading is.
+
+    A long heading is truncated with a hash of the full id, so the name stays a
+    valid path component without ever colliding with the id it was cut from.
+    """
+    leaf = node.get("id") or _slug(node.get("title", ""))
+    if len(leaf) <= _LEAF_DIR_MAX:
+        return leaf
+    digest = hashlib.sha1(leaf.encode("utf-8")).hexdigest()[:8]
+    return f"{leaf[: _LEAF_DIR_MAX - 9]}-{digest}"
 
 
 def _lookup(data: "Optional[Dict]", node: dict):

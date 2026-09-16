@@ -287,6 +287,16 @@ mindmaps/
         └── diagram.mmd   # the .mmd source (diffable)
 ```
 
+`<leaf-id>` is the leaf's unique heading-derived id (the same string used as its
+source-anchor fragment), **never a position**. A positional name (`leaf-003`)
+shifts the moment a section is inserted above it, and every link, bookmark and
+`refresh-stale-leaves` lookup then quietly resolves to a different leaf — the
+directory name has to be a function of the thing, not of its index.
+
+The map is the navigation surface: `index.html` links each leaf to its own
+`leaves/<leaf-id>/notebook.html`, and its source anchors are relative paths that
+resolve from where the map actually sits (see §14, `links`).
+
 ## 14. Verification & coverage report
 
 `build-course-map` ends by printing, per module: file inventory status; per-leaf
@@ -294,6 +304,18 @@ checklist coverage; per-leaf adherence (drift flags from the critic + grounding
 misses); broken anchors; offline-purity (no external load-bearing refs in maps);
 notebook page count vs budget; `needs-review` count. Any unclassified file or
 coverage miss is a **failure**, not a warning.
+
+**`links` (broken anchors).** Every `href` in the map and in every notebook must
+resolve from the file that carries it — a dead link is invisible until someone
+clicks it, which is exactly the class of breakage this project refuses to ship.
+The two kinds of link carry different levels, because they fail for different
+reasons: a link **inside** the artifact tree (a leaf's notebook, the shared
+assets) is the build's own promise, so breaking it is a **failure**; a link **out**
+to the module markdown can only resolve when the tree ships beside its source — the
+§13 layout does, a bare copy of `mindmaps/` does not — so that is `needs-review`
+with an explicit remedy. Resolution is asserted, not the fragment: a wrong
+`#anchor` still opens the right file, and GitHub's own slug rule is not ours to
+replicate.
 
 ## 15. Milestones (tracer bullets) and open questions
 
