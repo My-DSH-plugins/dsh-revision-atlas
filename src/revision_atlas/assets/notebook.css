@@ -1,13 +1,14 @@
-/* Revision Atlas notebook theme (ticket 0006) — ruled paper + handwriting.
+/* Revision Atlas notebook theme (ticket 0006) — a ruled page, drawn to the
+ * reference template (assets/notebookImage.jpg), measured from the image:
  *
- * Scope note: this is deliberately MINIMAL. The page's margin geometry (top /
- * left / right) is intentionally absent pending a reference image — the rules
- * here are baseline-aligned only, which is the one part that is independent of
- * how the margins end up being drawn.
+ *   - a red vertical margin rule, 64/404 ≈ 15.8% in from the page's left edge;
+ *   - a top margin of the SAME width before the first blue rule, so the cell
+ *     they cut at the top-left is a square;
+ *   - blue rules every line-height, spanning from the red rule to the right
+ *     margin, and set on the text baseline (measured from Kalam's own metrics).
  *
- * The rule offset is MEASURED from Kalam's own metrics (17px Kalam in a 32px
- * line sits its baseline 20.5px from the line-box top), so the handwriting
- * actually rests on the lines rather than floating between them.
+ * That top-left square is the page-turn zone: hovering it renders the turn, and
+ * clicking it flips. Nothing else on the page flips.
  */
 @font-face {
   font-family: 'Kalam';
@@ -17,12 +18,19 @@
 }
 
 :root {
-  --page-w: 520px;             /* must match the StPageFlip page width in the notebook */
-  --cover-shift-front: -260px; /* half a page left  — the front cover sits on the RIGHT half */
-  --cover-shift-back: 260px;   /* half a page right — the back cover sits on the LEFT half */
+  --page-w: 520px;             /* must match the StPageFlip page width */
+  --cover-shift-front: -260px; /* half a page left  — front cover sits on the RIGHT half */
+  --cover-shift-back: 260px;   /* half a page right — back cover sits on the LEFT half */
+
   --line: 32px;                /* ruled rhythm = body line-height */
-  --rule-at: 20.5px;     /* measured Kalam baseline in a 32px line (17px) */
-  --rule: #c9d9ec;
+  --rule-at: 20.5px;           /* measured Kalam baseline in a 32px line (17px) */
+  --margin-left: 82px;         /* the red margin rule sits here (≈15.8% of 520) */
+  --margin-top: 82px;          /* first blue rule — equals the left margin → a square */
+  --margin-right: 24px;
+  --margin-bottom: 40px;
+
+  --rule: #b9cdf0;             /* blue ruled line */
+  --margin-rule: #d9534f;      /* red margin line */
   --ink: #1a1a2e;
   --accent: #2563eb;
 }
@@ -34,35 +42,41 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 
-/* --- the flip stage: the spread + its two corner flip triggers ------------ */
+/* --- the flip stage: the book + its two page-turn squares ----------------- */
 .stage {
   position: relative;
-  /* StPageFlip centres the spread footprint, which parks each closed cover on
-     the half it physically occupies — the front cover on the RIGHT, the back
-     cover on the LEFT. Shift by half a page so the single cover is centred, and
-     let the shift animate as the cover opens or closes. */
+  /* StPageFlip centres the spread footprint, which parks the front cover on the
+     right half and the back cover on the left half — so shift by half a page
+     while a cover is showing, and let the shift animate as it opens. */
   transition: transform 440ms cubic-bezier(0.2, 0, 0, 1);
 }
 .stage.at-front { transform: translateX(var(--cover-shift-front)); }
 .stage.at-back { transform: translateX(var(--cover-shift-back)); }
 .book { overflow: hidden; }
 
-.corner {
-  position: absolute; top: 14px; width: 44px; height: 44px;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--rule); border-radius: 10px;
-  background: rgba(37, 99, 235, 0.06); color: var(--accent);
-  font-size: 22px; line-height: 1; cursor: pointer; z-index: 30;
-  transition: background 120ms ease, border-color 120ms ease;
+/* The page-turn zone: exactly the square cut by the red margin rule and the
+   topmost blue rule — the only region that turns the page. No chrome of its own;
+   that square is already drawn by the page's own rules. */
+.turn {
+  position: absolute; top: 0; z-index: 30;
+  width: var(--margin-left); height: var(--margin-top);
+  border: 0; background: transparent; padding: 0;
+  cursor: pointer;
 }
-.corner:hover { background: rgba(37, 99, 235, 0.14); border-color: var(--accent); }
-.corner-tl { left: 14px; }
-.corner-tr { right: 14px; }
+.turn-prev { left: 0; }
+.turn-next { right: 0; }
+.turn.is-hidden { display: none; }
+/* a whisper of feedback on hover: the square is discoverable without the zone
+   pretending to be a button on a paper page */
+.turn:hover { background: rgba(37, 99, 235, 0.06); }
+.turn:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 
-/* --- the ruled page (baseline-aligned; margins TBD from reference) -------- */
+/* --- the ruled page ------------------------------------------------------- */
 .page {
   position: relative;
   background-color: #fffdf6;
+  /* one rule per band, on the text baseline; clipped to the content box so the
+     rules start after the top margin and stop at the left / right margins */
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -72,11 +86,25 @@ body {
     transparent var(--rule-at),
     transparent var(--line)
   );
-  padding: 64px 40px 40px;
+  background-origin: content-box;
+  background-clip: content-box;
+  padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
   font-size: 17px;
   line-height: var(--line);
   color: var(--ink);
   overflow: hidden;
+}
+
+/* the red margin rule — page top down to the bottom margin */
+.page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: var(--margin-bottom);
+  left: var(--margin-left);
+  width: 1.5px;
+  background: var(--margin-rule);
+  pointer-events: none;
 }
 
 /* headings share the body's baseline grid (nudged by measured metric) */
@@ -91,7 +119,7 @@ body {
 .page .muted { font-size: 16px; color: #8b93a7; }
 .page .anchor { font-size: 16px; color: #9aa3b2; }
 
-/* --- title page: no rules ------------------------------------------------- */
+/* --- title page: no rules, no margin rule --------------------------------- */
 .page-cover {
   background-image: none;
   background-color: var(--accent);
@@ -101,12 +129,14 @@ body {
   flex-direction: column;
   justify-content: center;
 }
+.page-cover::before { display: none; }
 .page-cover h1 { color: #fff; font-size: 30px; top: 0; }
 .page-cover .muted { color: rgba(255, 255, 255, 0.78); }
 .page-cover .anchor { color: rgba(255, 255, 255, 0.6); }
 
 /* --- diagram: plain paper, so the SVG reads cleanly over it --------------- */
 .page-diagram { background-image: none; }
+.page-diagram::before { display: none; }
 .page-diagram .diagram svg { max-width: 100%; height: auto; display: block; }
 
 details summary { cursor: pointer; color: var(--accent); }

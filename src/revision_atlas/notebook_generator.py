@@ -129,43 +129,62 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
   <div class="book" id="book">
 {pages}
   </div>
-  <button class="corner corner-tl" id="prevBtn" type="button" aria-label="Previous page">&lsaquo;</button>
-  <button class="corner corner-tr" id="nextBtn" type="button" aria-label="Next page">&rsaquo;</button>
+  <button class="turn turn-prev" id="prevZone" type="button" aria-label="Previous page"></button>
+  <button class="turn turn-next" id="nextZone" type="button" aria-label="Next page"></button>
 </div>
 <script src="{assets_rel}/page-flip.browser.js"></script>
 <script>
 (() => {{
   const el = document.getElementById('book');
   // A notebook opens and closes on its covers: hard front/back covers shown alone
-  // and centred, soft two-page spread in between. Click-to-flip is disabled
-  // everywhere; only the two corner zones flip (see .corner in notebook.css).
+  // and centred, soft two-page spread in between. Nothing on the page flips on a
+  // click — the only turn zones are the margin square at the top-left and its
+  // mirror at the top-right (see .turn in notebook.css).
   const pf = new St.PageFlip(el, {{
     width: 520, height: 680, showCover: true, usePortrait: false,
-    showPageCorners: false, disableFlipByClick: true,
+    showPageCorners: true, disableFlipByClick: true,
     maxShadowOpacity: 0.35, mobileScrollSupport: false,
   }});
   pf.loadFromHTML(el.querySelectorAll('.page'));
-  document.getElementById('prevBtn').onclick = () => pf.flipPrev();
-  document.getElementById('nextBtn').onclick = () => pf.flipNext();
+  document.getElementById('prevZone').onclick = () => pf.flipPrev();
+  document.getElementById('nextZone').onclick = () => pf.flipNext();
 
   // The notebook opens and closes on its covers, each a single CENTRED page.
   // StPageFlip centres the spread footprint, which parks the front cover on the
   // right half and the back cover on the left half — so shift the book by half a
-  // page (in the matching direction) while a cover is showing. The corner that
-  // has nothing to flip to is hidden (the cover shows only one page).
+  // page (in the matching direction) while a cover is showing. The turn zone with
+  // nothing to turn to is hidden (a cover shows only one page).
   const stage = document.querySelector('.stage');
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
+  const prevZone = document.getElementById('prevZone');
+  const nextZone = document.getElementById('nextZone');
   const syncCover = () => {{
     const i = pf.getCurrentPageIndex();
     const last = pf.getPageCount() - 1;
     stage.classList.toggle('at-front', i === 0);
     stage.classList.toggle('at-back', i === last && last > 0);
-    prevBtn.style.display = i === 0 ? 'none' : 'flex';
-    nextBtn.style.display = i >= last ? 'none' : 'flex';
+    prevZone.classList.toggle('is-hidden', i === 0);
+    nextZone.classList.toggle('is-hidden', i >= last);
   }};
   pf.on('flip', syncCover);
   syncCover();
+
+  // StPageFlip's own corner fold fires over a diagonal/5 (~171px) zone at EVERY
+  // book corner — far bigger than the page's margin square, and it includes the
+  // bottom corners. Confine it to the square: forward hover that happens inside a
+  // turn zone to the flip engine (so the real fold renders there), and hold back
+  // every mousemove that happens outside one, so no fold appears anywhere else.
+  const flipEl = el.querySelector('.stf__block') || el;
+  const relay = (x, y) => flipEl.dispatchEvent(new MouseEvent('mousemove', {{
+    clientX: x, clientY: y, bubbles: true,
+  }}));
+  [prevZone, nextZone].forEach((zone) => {{
+    zone.addEventListener('mousemove', (e) => relay(e.clientX, e.clientY));
+    zone.addEventListener('mouseleave', () => relay(0, 0));
+  }});
+  document.addEventListener('mousemove', (e) => {{
+    const t = e.target;
+    if (!(t && t.classList && t.classList.contains('turn'))) e.stopPropagation();
+  }}, true);
 }})();
 </script>
 </body>

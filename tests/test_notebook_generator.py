@@ -63,8 +63,10 @@ class TestRenderNotebook(unittest.TestCase):
         self.assertIn("usePortrait: false", html)
         self.assertIn("disableFlipByClick: true", html)
         self.assertIn('data-density="hard"', html)
-        self.assertIn("corner-tr", html)
         self.assertIn("at-front", html)
+        # the only turn zones are the two margin squares
+        self.assertIn("turn-prev", html)
+        self.assertIn("turn-next", html)
 
     def test_asset_prefix_used(self):
         html = render_notebook(_full_leaf(), assets_rel="../../assets")
