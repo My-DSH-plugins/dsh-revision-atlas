@@ -12,7 +12,8 @@ can name every item and still misstate one, and only a reader catches that.
 
 - `<DIR>` — the module directory (markdown source).
 - `<SPEC>` — the module's `spec.json` (in the generated artifact tree). Every node
-  with a `checklist` key is a leaf; each leaf has `title`, `file`, `line`.
+  with a `checklist` key is a leaf; each leaf has `id` (unique — **this is your map
+  key**), `title` (human-readable, may repeat), `file`, `line`.
 - `<NOTEBOOKS>` — the generated notebooks, one per leaf, in the same leaf order as
   `<SPEC>` (`leaves/leaf-000/notebook.html`, `leaf-001`, …). Read them as **text**:
   HTML, and SVG `<text>` labels. Never a screenshot, never a raster.
@@ -42,9 +43,10 @@ source also omits, or anything you cannot tie to a specific sentence in the sour
 
 ## Output
 
-Return exactly one JSON object mapping each leaf's **exact `title`** to an array of
-`{"detail": "…"}` objects — e.g.
-`{"1. Hallucination & confabulation": [{"detail": "the notebook says X, the source says Y (README.md:41)"}]}`.
+Return exactly one JSON object mapping each leaf's **`id`** (copied verbatim from
+`<SPEC>` — not the `title`, which may repeat) to an array of `{"detail": "…"}`
+objects — e.g.
+`{"1-hallucination--confabulation": [{"detail": "the notebook says X, the source says Y (README.md:41)"}]}`.
 Leaves with no drift may be omitted. No prose, no commentary, no code fence.
 
 The verifier consumes this file:

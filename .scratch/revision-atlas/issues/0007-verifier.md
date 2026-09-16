@@ -34,7 +34,7 @@ Seven checks, run by `verify(inv, spec, out_root, critic=None)`:
 | `closure` | failure | every corpus file classified; no dangling relative `.md` link (ADR-0001) |
 | `artifact` | failure | `spec.json` + a notebook for every leaf |
 | `coverage` | failure | each leaf's **mechanical** checklist items present in its artifact |
-| `grounding` | needs-review | each claim traces to ≥60% of its words in the leaf's own source range |
+| `grounding` | needs-review | each claim traces to a real `file:line` anchor in the leaf's own range (structural), plus a floor-level "shares no subject term" smell |
 | `anchor` | failure | every leaf's `file`/`line` exists |
 | `offline-purity` | failure | no external (http/https/protocol-relative) resource in any artifact |
 | `labels` | failure | every diagram SVG carries non-empty real `<text>` labels |
@@ -70,9 +70,26 @@ artifact tree rather than re-running the pipeline.
   an external `https://` reference → exit 1; a fabricated claim → exit 0 + `needs-review`.
 - 51 tests green (13 new).
 
+## Critic cold-test — done
+
+Run cold on M2 against a **planted drift** (a leaf rewritten to claim the retriever
+"retrieves the most relevant fact from its training data", where the source says
+the opposite). The critic caught it and cited the contradicting source line, then
+returned an empty list for the faithful leaves — so it discriminates rather than
+flagging everything. The adherence axis is therefore validated as a pass, not just
+as a file.
+
+## Superseded since this ticket was written
+
+- **Grounding is structural.** The ≥60% word-overlap rule above was invented, not
+  in the SPEC, and false-flagged every good paraphrase. It is now: a claim must
+  trace to a real `file:line` anchor in its own range, and only a claim sharing
+  **no** subject term with that range is flagged. The deterministic axis asserts
+  paraphrase-invariant facts only; fidelity is the critic's job (SPEC §6.4b).
+- **Leaf keys are ids, not titles** — see [0008](0008-unique-leaf-keys.md).
+
 ## Remaining
 
-- **Critic cold-test** — `verifier-critic.md` is written but not yet run cold
-  against M2/M5 with a fresh subagent (same protocol as the other passes).
 - The verifier is not yet reachable from `build-course-map` — it lands with the
   skill wrapping.
+- **The notebook clips a long reveal** — see 0010.

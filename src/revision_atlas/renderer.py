@@ -195,9 +195,9 @@ html {{ font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 
 def main(argv: "List[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(description="Revision Atlas module-map renderer (ticket 0004+0005)")
     ap.add_argument("module_dir")
-    ap.add_argument("--semantic", help="JSON file mapping leaf title -> claims (agent pass)")
-    ap.add_argument("--recall", help="JSON file mapping leaf title -> {recall,prompt,reveal} (self-test pass)")
-    ap.add_argument("--mermaid", help="JSON file mapping leaf title -> [mermaid .mmd strings] (diagram pass)")
+    ap.add_argument("--semantic", help="JSON file mapping leaf id -> claims (agent pass)")
+    ap.add_argument("--recall", help="JSON file mapping leaf id -> {recall,prompt,reveal} (self-test pass)")
+    ap.add_argument("--mermaid", help="JSON file mapping leaf id -> [mermaid .mmd strings] (diagram pass)")
     ap.add_argument("--out-dir", default=".", help="write index.html here")
     args = ap.parse_args(argv)
 

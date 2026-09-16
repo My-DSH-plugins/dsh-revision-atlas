@@ -234,6 +234,11 @@ class TestBuildPipeline(unittest.TestCase):
             self.assertTrue((root / "mindmaps" / root.name / "plan.md").exists())
             self.assertTrue((root / "mindmaps" / root.name / "spec.json").exists())
             self.assertTrue((root / "mindmaps" / "assets" / "notebook.css").exists())
+            # §13: the map belongs to the artifact tree — one build writes it,
+            # it is not a second command the caller has to remember.
+            map_html = root / "mindmaps" / root.name / "index.html"
+            self.assertTrue(map_html.exists())
+            self.assertIn("<svg", map_html.read_text(encoding="utf-8"))
 
     def test_build_merges_the_agent_passes(self):
         from revision_atlas.build import build

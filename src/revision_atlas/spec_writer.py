@@ -129,6 +129,46 @@ def _checklist_seed(inv: dict, node: dict) -> list:
     return items
 
 
+def _dedupe_ids(root: dict) -> dict:
+    """Make node ids globally unique (GitHub-style `-N` suffix).
+
+    The id is the source-anchor fragment (renderer) *and* the agent-pass key
+    (see `_annotate_leaves`). Two leaves that share a title must never collapse
+    into one JSON key — the duplicate-title bug that silently gives each a copy
+    of the other's claims. Dedupe every bare slug across the whole tree,
+    appending `-1`, `-2`, … from the second occurrence. For duplicate headings
+    within a single file this matches GitHub's own anchor disambiguation exactly
+    (`#deriving-the-baseline-and-thresholds-1`).
+    """
+    seen: Dict[str, int] = {}
+
+    def walk(node: dict) -> None:
+        slug = node.get("id")
+        if slug:
+            n = seen.get(slug, 0)
+            seen[slug] = n + 1
+            if n:
+                node["id"] = f"{slug}-{n}"
+        for b in (node.get("branches") or {}).values():
+            walk(b)
+        for c in node.get("children", []):
+            walk(c)
+
+    walk(root)
+    return root
+
+
+def _lookup(data: "Optional[Dict]", node: dict):
+    """Resolve a leaf's entry from an agent-pass map, by id (the unique key)
+    first, with a title fallback for older title-keyed inputs (M2 demo, tests).
+    """
+    if not data:
+        return None
+    if node.get("id") and node["id"] in data:
+        return data[node["id"]]
+    return data.get(node["title"])
+
+
 def _annotate_leaves(
     inv: dict,
     node: dict,
@@ -138,26 +178,26 @@ def _annotate_leaves(
 ) -> dict:
     """Attach a `checklist` to every leaf: agent claims + deterministic seed.
 
-    `semantic` maps a leaf's title to the claim strings the agent drafted from
-    the source (the agentic half; absent in the deterministic seed alone).
-    `recall` maps a leaf's title to `{recall, prompt, reveal}` — the self-test
-    agent pass. `mermaid` maps a leaf's title to the agent-authored `.mmd`
-    strings (ticket 0005, adr/0005). All three fold into the plan.md review
-    surface alongside the checklist they must survive.
+    `semantic` maps a leaf's id to the claim strings the agent drafted from the
+    source (the agentic half; absent in the deterministic seed alone). `recall`
+    maps a leaf's id to `{recall, prompt, reveal}` — the self-test agent pass.
+    `mermaid` maps a leaf's id to the agent-authored `.mmd` strings (ticket
+    0005, adr/0005). All three fold into the plan.md review surface alongside
+    the checklist they must survive.
     """
     for b in (node.get("branches") or {}).values():
         _annotate_leaves(inv, b, semantic, recall, mermaid)
     for c in node.get("children", []):
         _annotate_leaves(inv, c, semantic, recall, mermaid)
     if node["kind"] in LEAF_KINDS:
-        claims = [{"kind": "claim", "text": t} for t in (semantic or {}).get(node["title"], [])]
+        claims = [{"kind": "claim", "text": t} for t in (_lookup(semantic, node) or [])]
         node["checklist"] = claims + _checklist_seed(inv, node)
-        rc = (recall or {}).get(node["title"])
+        rc = _lookup(recall, node)
         if rc:
             node["recall"] = rc.get("recall", [])
             node["prompt"] = rc.get("prompt", "")
             node["reveal"] = rc.get("reveal", "")
-        mm = (mermaid or {}).get(node["title"], [])
+        mm = _lookup(mermaid, node) or []
         if mm:
             node["mermaid"] = mm
     return node
@@ -342,6 +382,7 @@ def build_structure(
              "file": f["path"], "line": None, "children": []}
         )
 
+    _dedupe_ids(root)
     _annotate_leaves(inv, root, semantic, recall, mermaid)
 
     def _leaf_stats(node, acc):
@@ -375,15 +416,15 @@ def main(argv: "List[str] | None" = None) -> int:
     ap.add_argument("module_dir", help="path to a course-module directory")
     ap.add_argument(
         "--semantic",
-        help="JSON file mapping leaf title -> claim strings (the agent pass)",
+        help="JSON file mapping leaf id -> claim strings (the agent pass)",
     )
     ap.add_argument(
         "--recall",
-        help="JSON file mapping leaf title -> {recall, prompt, reveal} (self-test pass)",
+        help="JSON file mapping leaf id -> {recall, prompt, reveal} (self-test pass)",
     )
     ap.add_argument(
         "--mermaid",
-        help="JSON file mapping leaf title -> [mermaid .mmd strings] (diagram pass)",
+        help="JSON file mapping leaf id -> [mermaid .mmd strings] (diagram pass)",
     )
     ap.add_argument(
         "--out-dir",

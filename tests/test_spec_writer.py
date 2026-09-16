@@ -161,6 +161,36 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("```mermaid", out["plan_md"])
         self.assertIn("A[Plausibility] --> B[Wrong]", out["plan_md"])
 
+    def test_duplicate_title_leaves_get_distinct_keys(self):
+        # M5 has two leaves titled "Deriving the baseline and thresholds."
+        # (README lines 157 volume-based and 767 per-column). The old title-keyed
+        # lookup collapsed them into one JSON key, silently giving each leaf the
+        # other's claims. They must get distinct ids — and distinct claims when a
+        # pass keys by id (ticket 0008).
+        out = build_structure(extract(M5))
+        leaves = [
+            n
+            for n in _all_nodes(out["root"])
+            if n["title"] == "Deriving the baseline and thresholds."
+        ]
+        self.assertEqual(len(leaves), 2)
+        ids = [n["id"] for n in leaves]
+        self.assertEqual(len(set(ids)), 2)  # GitHub-style suffix, not one key
+        self.assertIn("deriving-the-baseline-and-thresholds", ids)
+        self.assertIn("deriving-the-baseline-and-thresholds-1", ids)
+
+        # Keyed by id, each leaf receives only its own claim — no cross-talk.
+        vol_id, col_id = "deriving-the-baseline-and-thresholds", "deriving-the-baseline-and-thresholds-1"
+        out2 = build_structure(
+            extract(M5),
+            semantic={vol_id: ["volume-based baseline"], col_id: ["per-column baseline"]},
+        )
+        by_id = {n["id"]: n for n in _all_nodes(out2["root"])}
+        vol_claims = [c["text"] for c in by_id[vol_id]["checklist"] if c["kind"] == "claim"]
+        col_claims = [c["text"] for c in by_id[col_id]["checklist"] if c["kind"] == "claim"]
+        self.assertEqual(vol_claims, ["volume-based baseline"])
+        self.assertEqual(col_claims, ["per-column baseline"])
+
     def test_section_intros_get_checklists(self):
         # A section with children owns its intro range and gets a checklist, so
         # its intro prose isn't silently dropped (regression from the cold test).

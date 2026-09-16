@@ -9,10 +9,10 @@ to end:
 The deterministic steps are pure code. The four agent passes arrive as JSON files
 produced by the cold passes in `.scratch/revision-atlas/skill/`:
 
-  semantic-pass.md      leaf title -> [claims]              (Gate-2 input)
-  recall-pass.md        leaf title -> {recall,prompt,reveal}
-  mermaid-pass.md       leaf title -> [.mmd sources]
-  verifier-critic.md    leaf title -> [{detail}]            (adherence drift)
+  semantic-pass.md      leaf id -> [claims]                 (Gate-2 input)
+  recall-pass.md        leaf id -> {recall,prompt,reveal}
+  mermaid-pass.md       leaf id -> [.mmd sources]
+  verifier-critic.md    leaf id -> [{detail}]               (adherence drift)
 
 Exit code is the verifier's: 0 pass, 1 fail, 2 nothing to verify.
 """
@@ -28,6 +28,7 @@ from .extractor import extract
 from .leaf_generator import annotate_artifacts
 from .mermaid_render import render_leaf_mermaids
 from .notebook_generator import generate_all
+from .renderer import render_map
 from .spec_writer import build_structure
 from .verifier import verify
 
@@ -55,8 +56,9 @@ def build(
     render_leaf_mermaids(inv, spec["root"])
     written = generate_all(inv, spec, out_root)
 
-    # the plan is the human review artifact (§13) and lives beside the artifacts
+    # §13: the module dir holds the map, the review plan, and the spec
     module_out = Path(out_root) / Path(inv["root"]).name
+    (module_out / "index.html").write_text(render_map(spec), encoding="utf-8")
     (module_out / "plan.md").write_text(planned["plan_md"], encoding="utf-8")
 
     rep = verify(inv, spec, out_root, critic=critic)
@@ -67,10 +69,10 @@ def main(argv: "List[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(description="Revision Atlas build (extract → generate → verify)")
     ap.add_argument("module_dir")
     ap.add_argument("--mindmaps", default="mindmaps", help="artifacts root")
-    ap.add_argument("--semantic", help="JSON: leaf title -> [claims]")
-    ap.add_argument("--recall", help="JSON: leaf title -> {recall,prompt,reveal}")
-    ap.add_argument("--mermaid", help="JSON: leaf title -> [.mmd sources]")
-    ap.add_argument("--critic", help="JSON: the critic's drift report")
+    ap.add_argument("--semantic", help="JSON: leaf id -> [claims]")
+    ap.add_argument("--recall", help="JSON: leaf id -> {recall,prompt,reveal}")
+    ap.add_argument("--mermaid", help="JSON: leaf id -> [.mmd sources]")
+    ap.add_argument("--critic", help="JSON: leaf id -> [{detail}]")
     ap.add_argument("--json", help="also write the verification report here")
     args = ap.parse_args(argv)
 
@@ -82,8 +84,11 @@ def main(argv: "List[str] | None" = None) -> int:
         mermaid=_load(args.mermaid),
         critic=_load(args.critic),
     )
-    module_out = Path(args.mindmaps) / Path(spec["module"]).name
-    print(f"generated {len(written)} notebooks under {module_out}")
+    # the artifact dir is named for the MODULE DIRECTORY (§13), not the module's
+    # display title — `spec["module"]` is the title and would name a dir that
+    # does not exist
+    module_out = Path(args.mindmaps) / Path(args.module_dir.rstrip("/")).name
+    print(f"generated {len(written)} notebooks + index.html under {module_out}")
     print()
     print(rep.render())
     if args.json:

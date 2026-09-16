@@ -365,9 +365,9 @@ def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
 def main(argv: "List[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(description="Revision Atlas notebook generator (ticket 0006)")
     ap.add_argument("module_dir")
-    ap.add_argument("--semantic", help="JSON: leaf title -> claims")
-    ap.add_argument("--recall", help="JSON: leaf title -> {recall,prompt,reveal}")
-    ap.add_argument("--mermaid", help="JSON: leaf title -> [mermaid .mmd strings]")
+    ap.add_argument("--semantic", help="JSON: leaf id -> claims")
+    ap.add_argument("--recall", help="JSON: leaf id -> {recall,prompt,reveal}")
+    ap.add_argument("--mermaid", help="JSON: leaf id -> [mermaid .mmd strings]")
     ap.add_argument("--out-dir", default="mindmaps", help="write mindmaps/ here")
     args = ap.parse_args(argv)
 

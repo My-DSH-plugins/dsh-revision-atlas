@@ -9,9 +9,10 @@ rely on nothing else.
 - `<DIR>` — the module directory (markdown source).
 - `<SPEC>` — a `spec.json` produced by the deterministic pipeline. Its `root` is
   the tree; every node carrying a `checklist` key is a **leaf**. Each leaf has
-  `title`, `kind`, `file`, and `line` (the heading line, or `null` for a sidecar
-  whose whole body is the leaf). The `checklist` is already frozen: use it to
-  know the load-bearing content, but do not edit it.
+  `id` (unique — **this is your map key**), `title` (human-readable, may repeat),
+  `kind`, `file`, and `line` (the heading line, or `null` for a sidecar whose whole
+  body is the leaf). The `checklist` is already frozen: use it to know the
+  load-bearing content, but do not edit it.
 
 ## Task
 
@@ -39,8 +40,9 @@ learner should hold in memory**. Prose paragraphs and plain lists usually do
 
 ## Output
 
-Return exactly one JSON object mapping each leaf's **exact `title`** (copied
-verbatim from `<SPEC>`) to an array of mermaid `.mmd` strings — e.g.
-`{"1. Hallucination & confabulation": ["flowchart TD\n  A[Plausibility] --> B[Wrong]"]}`.
+Return exactly one JSON object mapping each leaf's **`id`** (copied verbatim
+from `<SPEC>` — not the `title`, which may repeat) to an array of mermaid `.mmd`
+strings — e.g.
+`{"1-hallucination--confabulation": ["flowchart TD\n  A[Plausibility] --> B[Wrong]"]}`.
 Leaves with no diagram may be omitted. No prose, no commentary, no code fence
 around the whole JSON (the `.mmd` strings are inside it).

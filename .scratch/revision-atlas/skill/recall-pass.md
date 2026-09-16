@@ -9,9 +9,10 @@ only the files named here, and rely on nothing else.
 - `<DIR>` — the module directory (markdown source).
 - `<SPEC>` — a `spec.json` produced by the deterministic pipeline. Its `root` is
   the tree; every node carrying a `checklist` key is a **leaf**. Each leaf has
-  `title`, `kind`, `file`, and `line` (the heading line, or `null` for a sidecar
-  whose whole body is the leaf). The `checklist` is already frozen (approved):
-  use it to know what must survive, but do not edit it.
+  `id` (unique — **this is your map key**), `title` (human-readable, may repeat),
+  `kind`, `file`, and `line` (the heading line, or `null` for a sidecar whose whole
+  body is the leaf). The `checklist` is already frozen (approved): use it to know
+  what must survive, but do not edit it.
 
 ## Task
 
@@ -45,6 +46,7 @@ or higher rank; for a sidecar (`line` is `null`), the whole file.
 
 ## Output
 
-Return exactly one JSON object mapping each leaf's **exact `title`** (copied
-verbatim from `<SPEC>`) to `{"recall": [...], "prompt": "...", "reveal": "..."}`.
-No prose, no commentary, no code fence.
+Return exactly one JSON object mapping each leaf's **`id`** (copied verbatim
+from `<SPEC>` — not the `title`, which may repeat) to
+`{"recall": [...], "prompt": "...", "reveal": "..."}`. No prose, no commentary,
+no code fence.
