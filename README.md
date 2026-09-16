@@ -75,18 +75,12 @@ The `revision-atlas` skill carries four pass instructions (`semantic`, `recall`,
 
 ## Install
 
-The same `skills/<name>/SKILL.md` tree works on both hosts.
+npm is the distribution channel — the same `skills/<name>/SKILL.md` tree works on both
+hosts.
 
 ### DeepSeek Harness
 
 ```sh
-# Method 1: local link (recommended while developing)
-dsh plugin --profile <profile> add link:$PWD
-
-# Method 2: from Git
-dsh plugin --profile <profile> add "github:My-DSH-plugins/dsh-revision-atlas"
-
-# Method 3: after publishing to npm
 dsh plugin --profile <profile> add dsh-revision-atlas
 ```
 
@@ -96,18 +90,14 @@ from the skill picker.
 ### Claude Code
 
 ```sh
-claude plugin install /path/to/dsh-revision-atlas
-
-# or fetch it from npm first, then install the fetched copy as a local path:
 npm install dsh-revision-atlas
 claude plugin install node_modules/dsh-revision-atlas
 ```
 
 Claude Code distributes plugins through **marketplaces and paths**, not npm — npm is
-only a plugin's *dependency* registry. So the npm step above is a transport: it
-fetches the files, and Claude installs them from the local path. The
-`.claude-plugin/plugin.json` manifest ships in the package; the skills are the same
-`skills/` directory.
+only a plugin's *dependency* registry. So the npm step here is a transport: it fetches
+the files, and Claude installs them from the local path. The
+`.claude-plugin/plugin.json` manifest ships in the package.
 
 ## Why you can trust it
 
@@ -123,6 +113,14 @@ loud instead:
   plan says so — with the changed leaves named.
 
 ## Development
+
+While the plugin is unpublished — or while you are editing it — link the checkout so
+changes are picked up without re-publishing:
+
+```sh
+dsh plugin --profile <profile> add link:$PWD
+claude plugin install $PWD
+```
 
 ```sh
 PYTHONPATH=src python3 -m unittest discover -s tests
