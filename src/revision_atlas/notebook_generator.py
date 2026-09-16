@@ -46,18 +46,24 @@ def _anchor_html(node: dict) -> str:
 
 def _cover_html(node: dict) -> str:
     kind = _esc(node.get("kind", ""))
+    # The flex container is an INNER element, never the .page itself: StPageFlip
+    # sets display:block on the page element, which silently overrides it.
     return (
+        '<div class="cover-body">'
         f"<h1>{_esc(node['title'])}</h1>"
         f'<div class="muted">revision leaf · {kind}</div>'
         f"{_anchor_html(node)}"
+        "</div>"
     )
 
 
 def _back_cover_html(node: dict) -> str:
     return (
+        '<div class="cover-body">'
         f"<h1>{_esc(node['title'])}</h1>"
         '<div class="muted">— end of leaf —</div>'
         f"{_anchor_html(node)}"
+        "</div>"
     )
 
 

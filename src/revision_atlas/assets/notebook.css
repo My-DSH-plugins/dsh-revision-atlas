@@ -142,11 +142,19 @@ body {
   background-color: var(--accent);
   color: #fff;
   padding: calc(var(--page-h) * 0.088) calc(var(--page-w) * 0.085);
+}
+.page-cover::before { display: none; }
+/* StPageFlip sets display:block on the page element itself, so a flex container
+   declared on .page-cover is silently overridden — justify-content then does
+   nothing and the title sits in the corner with the rest of the cover empty.
+   The cover's layout therefore lives on an inner element. */
+.page-cover .cover-body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: calc(var(--line) * 0.22);
+  height: 100%;
 }
-.page-cover::before { display: none; }
 .page-cover h1 { color: #fff; font-size: calc(var(--ink-size) * 1.76); top: 0; }
 .page-cover .muted { color: rgba(255, 255, 255, 0.78); }
 .page-cover .anchor { color: rgba(255, 255, 255, 0.6); }
