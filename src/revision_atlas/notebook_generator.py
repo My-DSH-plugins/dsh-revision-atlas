@@ -52,6 +52,14 @@ def _cover_html(node: dict) -> str:
     )
 
 
+def _back_cover_html(node: dict) -> str:
+    return (
+        f"<h1>{_esc(node['title'])}</h1>"
+        '<div class="muted">— end of leaf —</div>'
+        f"{_anchor_html(node)}"
+    )
+
+
 def _recall_html(node: dict) -> str:
     bullets = "".join(f"<li>{_esc(b)}</li>" for b in node.get("recall", []))
     return "<h2>Recall</h2><ul>" + bullets + "</ul>"
@@ -76,19 +84,24 @@ def _source_html(node: dict) -> str:
     return '<h2>Source audit</h2><div class="source">' + rows + "</div>"
 
 
-def _pages(node: dict) -> List[Tuple[str, str]]:
-    """Return (density, inner-html) pages in flip order."""
-    pages: List[Tuple[str, str]] = [("hard", _cover_html(node))]
+def _pages(node: dict) -> List[Tuple[str, str, str]]:
+    """Return (density, extra-class, inner-html) pages in flip order.
+
+    A notebook opens and closes on its covers: a hard front cover and a hard back
+    cover, each shown alone, centred. The content between them is a soft two-page
+    spread. Soft content pages keep forward/backward flips mirrored.
+    """
+    pages: List[Tuple[str, str, str]] = [("hard", "page-cover", _cover_html(node))]
     if node.get("recall"):
-        pages.append(("soft", _recall_html(node)))
+        pages.append(("soft", "", _recall_html(node)))
     for d in node.get("diagrams", []):
         if d.get("svg"):
-            pages.append(("soft", _diagram_html(d)))
+            pages.append(("soft", "page-diagram", _diagram_html(d)))
     if node.get("prompt") or node.get("reveal"):
-        pages.append(("soft", _selftest_html(node)))
+        pages.append(("soft", "", _selftest_html(node)))
     if node.get("source"):
-        pages.append(("soft", _source_html(node)))
-    pages.append(("hard", _cover_html(node)))
+        pages.append(("soft", "", _source_html(node)))
+    pages.append(("hard", "page-cover", _back_cover_html(node)))
     return pages
 
 
@@ -96,8 +109,8 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
     """Render one leaf to a self-contained flip-notebook HTML string."""
     title = _esc(node["title"])
     page_divs = []
-    for density, inner in _pages(node):
-        cls = "page page-cover" if density == "hard" else "page"
+    for density, extra, inner in _pages(node):
+        cls = "page" + (f" {extra}" if extra else "")
         dattr = ' data-density="hard"' if density == "hard" else ""
         page_divs.append(f'<div class="{cls}"{dattr}>{inner}</div>')
     pages = "\n".join(page_divs)
@@ -112,18 +125,47 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
 <link rel="stylesheet" href="{assets_rel}/notebook.css" />
 </head>
 <body>
-<div class="book" id="book">
+<div class="stage">
+  <div class="book" id="book">
 {pages}
+  </div>
+  <button class="corner corner-tl" id="prevBtn" type="button" aria-label="Previous page">&lsaquo;</button>
+  <button class="corner corner-tr" id="nextBtn" type="button" aria-label="Next page">&rsaquo;</button>
 </div>
 <script src="{assets_rel}/page-flip.browser.js"></script>
 <script>
 (() => {{
   const el = document.getElementById('book');
+  // A notebook opens and closes on its covers: hard front/back covers shown alone
+  // and centred, soft two-page spread in between. Click-to-flip is disabled
+  // everywhere; only the two corner zones flip (see .corner in notebook.css).
   const pf = new St.PageFlip(el, {{
-    width: 520, height: 680, showCover: true,
-    maxShadowOpacity: 0.35, mobileScrollSupport: false, showPageCorners: true,
+    width: 520, height: 680, showCover: true, usePortrait: false,
+    showPageCorners: false, disableFlipByClick: true,
+    maxShadowOpacity: 0.35, mobileScrollSupport: false,
   }});
   pf.loadFromHTML(el.querySelectorAll('.page'));
+  document.getElementById('prevBtn').onclick = () => pf.flipPrev();
+  document.getElementById('nextBtn').onclick = () => pf.flipNext();
+
+  // The notebook opens and closes on its covers, each a single CENTRED page.
+  // StPageFlip centres the spread footprint, which parks the front cover on the
+  // right half and the back cover on the left half — so shift the book by half a
+  // page (in the matching direction) while a cover is showing. The corner that
+  // has nothing to flip to is hidden (the cover shows only one page).
+  const stage = document.querySelector('.stage');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const syncCover = () => {{
+    const i = pf.getCurrentPageIndex();
+    const last = pf.getPageCount() - 1;
+    stage.classList.toggle('at-front', i === 0);
+    stage.classList.toggle('at-back', i === last && last > 0);
+    prevBtn.style.display = i === 0 ? 'none' : 'flex';
+    nextBtn.style.display = i >= last ? 'none' : 'flex';
+  }};
+  pf.on('flip', syncCover);
+  syncCover();
 }})();
 </script>
 </body>

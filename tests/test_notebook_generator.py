@@ -28,21 +28,24 @@ def _full_leaf():
 class TestPages(unittest.TestCase):
     def test_full_leaf_pages(self):
         pages = _pages(_full_leaf())
-        densities = [d for d, _ in pages]
-        self.assertEqual(densities[0], "hard")     # cover
-        self.assertEqual(densities[-1], "hard")    # back cover
-        self.assertIn("soft", densities)           # content pages in between
+        densities = [d for d, _, _ in pages]
+        # the notebook opens and closes on its covers (hard pages, shown alone)
+        self.assertEqual(densities[0], "hard")
+        self.assertEqual(densities[-1], "hard")
+        self.assertTrue(all(d == "soft" for d in densities[1:-1]))
         # one page per content block, in order
-        html = "".join(inner for _, inner in pages)
-        self.assertIn("Recall", html)
-        self.assertIn("Diagram", html)
-        self.assertIn("Self-test", html)
-        self.assertIn("Source audit", html)
+        html = "".join(inner for _, _, inner in pages)
+        for label in ("Recall", "Diagram", "Self-test", "Source audit"):
+            self.assertIn(label, html)
+        classes = [c for _, c, _ in pages]
+        self.assertEqual(classes[0], "page-cover")    # front cover leads
+        self.assertEqual(classes[-1], "page-cover")   # back cover closes
+        self.assertIn("page-diagram", classes)        # diagram gets plain paper
 
     def test_empty_leaf_still_has_covers(self):
-        leaf = {"title": "X", "kind": "section"}
-        pages = _pages(leaf)
-        self.assertEqual(len(pages), 2)  # front + back cover only
+        pages = _pages({"title": "X", "kind": "section"})
+        self.assertEqual(len(pages), 2)                      # front + back cover
+        self.assertEqual([d for d, _, _ in pages], ["hard", "hard"])
 
 
 class TestRenderNotebook(unittest.TestCase):
@@ -54,7 +57,14 @@ class TestRenderNotebook(unittest.TestCase):
         self.assertIn("1. Hallucination &amp; confabulation", html)  # escaped title
         self.assertIn("Reveal answer", html)
         self.assertIn("Source audit", html)
-        self.assertIn("data-density=\"hard\"", html)
+        # notebook geometry: hard covers shown alone and centred, two-page spread
+        # between them, and click-anywhere flipping disabled
+        self.assertIn("showCover: true", html)
+        self.assertIn("usePortrait: false", html)
+        self.assertIn("disableFlipByClick: true", html)
+        self.assertIn('data-density="hard"', html)
+        self.assertIn("corner-tr", html)
+        self.assertIn("at-front", html)
 
     def test_asset_prefix_used(self):
         html = render_notebook(_full_leaf(), assets_rel="../../assets")

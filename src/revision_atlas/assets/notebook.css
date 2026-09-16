@@ -1,4 +1,14 @@
-/* Revision Atlas notebook theme (ticket 0006) — ruled paper + handwriting. */
+/* Revision Atlas notebook theme (ticket 0006) — ruled paper + handwriting.
+ *
+ * Scope note: this is deliberately MINIMAL. The page's margin geometry (top /
+ * left / right) is intentionally absent pending a reference image — the rules
+ * here are baseline-aligned only, which is the one part that is independent of
+ * how the margins end up being drawn.
+ *
+ * The rule offset is MEASURED from Kalam's own metrics (17px Kalam in a 32px
+ * line sits its baseline 20.5px from the line-box top), so the handwriting
+ * actually rests on the lines rather than floating between them.
+ */
 @font-face {
   font-family: 'Kalam';
   font-style: normal;
@@ -6,51 +16,100 @@
   src: url('kalam.woff2') format('woff2');
 }
 
+:root {
+  --page-w: 520px;             /* must match the StPageFlip page width in the notebook */
+  --cover-shift-front: -260px; /* half a page left  — the front cover sits on the RIGHT half */
+  --cover-shift-back: 260px;   /* half a page right — the back cover sits on the LEFT half */
+  --line: 32px;                /* ruled rhythm = body line-height */
+  --rule-at: 20.5px;     /* measured Kalam baseline in a 32px line (17px) */
+  --rule: #c9d9ec;
+  --ink: #1a1a2e;
+  --accent: #2563eb;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; background: #ece7dd; }
-body { font-family: 'Kalam', 'Segoe Print', 'Comic Sans MS', cursive; }
+body {
+  font-family: 'Kalam', 'Segoe Print', 'Comic Sans MS', cursive;
+  display: flex; align-items: center; justify-content: center;
+}
 
-.book { width: 100%; height: 100%; overflow: hidden; }
+/* --- the flip stage: the spread + its two corner flip triggers ------------ */
+.stage {
+  position: relative;
+  /* StPageFlip centres the spread footprint, which parks each closed cover on
+     the half it physically occupies — the front cover on the RIGHT, the back
+     cover on the LEFT. Shift by half a page so the single cover is centred, and
+     let the shift animate as the cover opens or closes. */
+  transition: transform 440ms cubic-bezier(0.2, 0, 0, 1);
+}
+.stage.at-front { transform: translateX(var(--cover-shift-front)); }
+.stage.at-back { transform: translateX(var(--cover-shift-back)); }
+.book { overflow: hidden; }
 
+.corner {
+  position: absolute; top: 14px; width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--rule); border-radius: 10px;
+  background: rgba(37, 99, 235, 0.06); color: var(--accent);
+  font-size: 22px; line-height: 1; cursor: pointer; z-index: 30;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.corner:hover { background: rgba(37, 99, 235, 0.14); border-color: var(--accent); }
+.corner-tl { left: 14px; }
+.corner-tr { right: 14px; }
+
+/* --- the ruled page (baseline-aligned; margins TBD from reference) -------- */
 .page {
+  position: relative;
   background-color: #fffdf6;
   background-image: repeating-linear-gradient(
     to bottom,
-    transparent 0, transparent 31px,
-    #c9d9ec 31px, #c9d9ec 32px
+    transparent 0,
+    transparent calc(var(--rule-at) - 1px),
+    var(--rule) calc(var(--rule-at) - 1px),
+    var(--rule) var(--rule-at),
+    transparent var(--rule-at),
+    transparent var(--line)
   );
-  color: #1a1a2e;
-  padding: 42px 38px;
+  padding: 64px 40px 40px;
   font-size: 17px;
-  line-height: 32px;
+  line-height: var(--line);
+  color: var(--ink);
   overflow: hidden;
 }
-.page h1 { font-size: 30px; line-height: 1.25; margin-bottom: 20px; color: #1a1a2e; }
-.page h2 { font-size: 21px; margin-bottom: 10px; color: #2563EB; }
-.page .muted { font-size: 13px; color: #8b93a7; }
-.page .anchor { font-size: 13px; color: #9aa3b2; margin-top: 10px; }
-.page ul { list-style: none; padding-left: 0; }
-.page ul li { margin-bottom: 6px; padding-left: 18px; text-indent: -18px; }
-.page ul li::before { content: "— "; color: #2563EB; }
 
+/* headings share the body's baseline grid (nudged by measured metric) */
+.page h1, .page h2 { line-height: var(--line); color: var(--ink); }
+.page h1 { font-size: 24px; position: relative; top: -2px; }
+.page h2 { font-size: 19px; position: relative; top: -0.5px; color: var(--accent); }
+
+.page ul { list-style: none; padding-left: 0; }
+.page ul li { margin: 0; }
+.page ul li::before { content: "— "; color: var(--accent); }
+
+.page .muted { font-size: 16px; color: #8b93a7; }
+.page .anchor { font-size: 16px; color: #9aa3b2; }
+
+/* --- title page: no rules ------------------------------------------------- */
 .page-cover {
-  background: #2563EB;
   background-image: none;
-  color: #ffffff;
+  background-color: var(--accent);
+  color: #fff;
+  padding: 60px 44px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  text-align: left;
 }
-.page-cover h1 { color: #ffffff; font-size: 34px; }
-.page-cover .muted { color: rgba(255,255,255,0.75); }
-.page-cover .anchor { color: rgba(255,255,255,0.6); }
+.page-cover h1 { color: #fff; font-size: 30px; top: 0; }
+.page-cover .muted { color: rgba(255, 255, 255, 0.78); }
+.page-cover .anchor { color: rgba(255, 255, 255, 0.6); }
 
-.diagram svg { max-width: 100%; height: auto; display: block; }
+/* --- diagram: plain paper, so the SVG reads cleanly over it --------------- */
+.page-diagram { background-image: none; }
+.page-diagram .diagram svg { max-width: 100%; height: auto; display: block; }
 
-details { margin-top: 14px; }
-details summary { cursor: pointer; color: #2563EB; font-weight: bold; }
-details[open] summary { margin-bottom: 8px; }
+details summary { cursor: pointer; color: var(--accent); }
 
-.source { font-size: 14px; line-height: 1.6; color: #3a3a4a; overflow-y: auto; max-height: 100%; }
-.source div { margin-bottom: 4px; }
+.source { font-size: 17px; }
+.source div { margin: 0; }
