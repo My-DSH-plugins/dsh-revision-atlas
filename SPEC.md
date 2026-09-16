@@ -405,6 +405,15 @@ and then refuses to generate anything until both are approved, exiting **3** —
 distinct from 1 (verification failed) so a caller can tell a human decision from a
 bug.
 
+**Approval is a conversation, not a command.** The human surface is the chat: the
+skill presents the plan and stops, the user grants approval in their own words, and
+only then does the skill record it — `--approve` is the skill's *internal verb*, the
+thing it runs after the user's affirmative, never a line the user is asked to type.
+The audit trail is the conversation that contains the grant, plus the record (`who`,
+`when`, and the fingerprints). A rogue agent could self-approve — the agent runs the
+commands either way — but it cannot approve anything other than the plan it showed,
+or do so invisibly: the fingerprints bind the record to the exact plan presented.
+
 An approval is a **fingerprint of the content it reviewed**, not a flag on a file:
 
 - Gate 1's fingerprint covers the shape — kinds, titles, ids, anchors, edges.
