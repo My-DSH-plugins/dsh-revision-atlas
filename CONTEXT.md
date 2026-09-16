@@ -79,3 +79,21 @@ The invariant that every corpus file is classified exactly once as
 `classified`, `ignored`, or `needs-review`; enforced by a script, a build fails
 on any gap.
 _Avoid_: completeness, accounting
+
+**Coverage**:
+The verification axis that asks, deterministically, whether each mechanical
+checklist item is *present* in the generated artifact. A miss fails the build.
+_Avoid_: completeness, inclusion
+
+**Grounding**:
+The verification axis that asks, deterministically, whether a claim's leaf has a
+*real source anchor* — its `file:line` exists. Structural, never a similarity
+test: the deterministic axis asserts only paraphrase-invariant facts, and a
+paraphrase keeps its subject terms by definition.
+_Avoid_: overlap, relevance, fidelity
+
+**Adherence**:
+The verification axis that asks whether a claim is *faithful* to the source —
+read by the LLM critic, which flags drift. Semantic; the critic's job, never the
+deterministic axis's.
+_Avoid_: accuracy, correctness, grounding

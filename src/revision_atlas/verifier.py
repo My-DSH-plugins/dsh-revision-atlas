@@ -7,9 +7,15 @@ Two axes, per §6.4:
     owns — is present in it. A miss is a **failure** (§14: "any unclassified file or
     coverage miss is a failure, not a warning"), because a miss is precisely the
     silent omission this whole project exists to make impossible.
-  - **adherence** (deterministic grounding + an LLM critic). Check that each claim
-    traces to the leaf's own source, and merge the critic's drift report when one is
-    supplied. Both annotate as `needs-review`; neither blocks the build.
+  - **adherence** (structural grounding + an LLM critic). Grounding is *structural*
+    — a claim traces to a real `file:line` anchor — plus a floor-level "shares no
+    subject term with its source" smell. Whether a claim is *faithful* to the source
+    is the critic's job. Both annotate as `needs-review`; neither blocks the build.
+
+The deterministic axis asserts only **paraphrase-invariant** facts — structure,
+presence, anchors, and a floor-level lexical overlap. It never measures semantic
+fidelity: a paraphrase is *supposed* to change the glue words, so any similarity
+threshold would false-flag it. Fidelity lives with the critic.
 
 Coverage deliberately checks the *mechanical* items and not the claims. A claim is
 agent-written prose, and a compaction is under no obligation to repeat its wording —
@@ -35,10 +41,12 @@ from .extractor import extract
 from .notebook_generator import iter_leaves
 from .spec_writer import leaf_range
 
-# a claim "traces to the source" when at least this share of its content words
-# appear in the leaf's own source range
-_GROUNDING_MIN = 0.6
-
+# The only lexical test on the deterministic axis is a FLOOR, never a similarity
+# threshold. Grounding is structural (SPEC §6.4b): a claim traces to a REAL SOURCE
+# ANCHOR — its leaf's file:line — which `_check_anchors` asserts. A claim that
+# shares no subject term with its source is flagged as a smell; a paraphrase keeps
+# its subject terms by definition, so anything above "at least one shared term"
+# false-flags a good paraphrase — and faithfulness is the critic's job anyway.
 _STOP = frozenset(
     "the a an and or of to in is are was were for with on at by from as it its this that "
     "these those be been being not no do does did than then so such can could may might "
@@ -236,8 +244,15 @@ def _source_text(inv: dict, leaf: dict) -> str:
 
 
 def _check_grounding(inv: dict, leaves: List[dict], rep: Report) -> None:
-    """Every claim must trace to the leaf's own source range (§6.4b)."""
-    claims = grounded = 0
+    """Grounding is structural (SPEC §6.4b): a claim traces to a REAL SOURCE
+    ANCHOR — its leaf's `file:line` exists — which `_check_anchors` asserts. This
+    pass adds only a floor-level hallucination smell: a claim that shares no
+    subject term with its leaf's source is almost certainly invented, so flag it
+    for a human. It deliberately measures nothing else — a paraphrase keeps its
+    subject terms by definition, so a similarity threshold here would false-flag
+    every good paraphrase; whether a claim is *faithful* is the critic's job.
+    """
+    claims = anchored = 0
     for leaf in leaves:
         src = set(_words(_source_text(inv, leaf)))
         for item in leaf.get("checklist", []):
@@ -245,20 +260,16 @@ def _check_grounding(inv: dict, leaves: List[dict], rep: Report) -> None:
                 continue
             claims += 1
             needed = _words(item["text"])
-            if not needed:
-                grounded += 1
-                continue
-            hit = sum(1 for w in needed if w in src) / len(needed)
-            if hit >= _GROUNDING_MIN:
-                grounded += 1
+            if not needed or any(w in src for w in needed):
+                anchored += 1
             else:
                 rep.findings.append(Finding(
                     "needs-review", "grounding", leaf["title"],
-                    f"claim traces to only {hit:.0%} of its words in the source: "
+                    "claim shares no subject term with its source — verify it is not invented: "
                     f"“{item['text'][:70]}”",
                 ))
     rep.stats["claims"] = claims
-    rep.stats["grounded"] = grounded
+    rep.stats["grounded"] = anchored
 
 
 def _check_anchors(inv: dict, leaves: List[dict], rep: Report) -> None:

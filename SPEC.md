@@ -154,7 +154,12 @@ leaf:
    is impossible. (b) **adherence** — an LLM critic (separate pass, fresh
    context) re-reads each leaf against its checklist + source and flags *drift*
    (content that names an item but misstates it), plus a deterministic grounding
-   check that each claim traces to a real source anchor; drift → `needs-review`.
+   check that each claim traces to a real source anchor — its leaf's `file:line`
+    exists. **Grounding is structural, never a similarity test**: the deterministic
+    axis asserts only *paraphrase-invariant* facts (structure, presence, anchors,
+    and a floor-level "shares no subject term" smell), because a paraphrase is
+    *supposed* to change the glue words and a similarity threshold would false-flag
+    it. Semantic fidelity belongs to the critic. Drift → `needs-review`.
    Adherence reads the **text** artifact — the notebook is HTML and diagrams are
    SVG with real `<text>` labels, never a raster — so the critic is an ordinary
    text pass, not a VLM; any PNG export is display-only, never the verification

@@ -155,6 +155,18 @@ class TestVerifierAnnotates(unittest.TestCase):
             self.assertEqual(rep.stats["grounded"], 1)
             self.assertFalse(rep.needs_review)
 
+    def test_paraphrased_claim_is_not_flagged(self):
+        # A paraphrase keeps its subject terms but changes the glue words. The
+        # floor (≥1 shared subject term) must not flag it — the old 60% overlap
+        # threshold did, and this test is the regression guard against its return.
+        with tempfile.TemporaryDirectory() as td:
+            inv, spec, out = _build(
+                Path(td), semantic={"Section one": ["retain the useful bullet"]}
+            )
+            rep = verify(inv, spec, str(out))
+            self.assertEqual(rep.stats["grounded"], 1)
+            self.assertFalse(rep.needs_review)
+
     def test_critic_drift_merges_as_needs_review(self):
         with tempfile.TemporaryDirectory() as td:
             inv, spec, out = _build(Path(td))
