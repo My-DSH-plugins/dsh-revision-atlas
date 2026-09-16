@@ -136,27 +136,52 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
 <script>
 (() => {{
   const el = document.getElementById('book');
+  const stage = document.querySelector('.stage');
+  const prevZone = document.getElementById('prevZone');
+  const nextZone = document.getElementById('nextZone');
+
+  // --- size the page to the window ----------------------------------------
+  // A notebook page keeps a paper's aspect; fit it to whatever window the reader
+  // actually has, so the book never overflows and content is never clipped. The
+  // ruling's geometry is all ratios of --page-w / --page-h, so it scales with it.
+  const RATIO = 520 / 680;
+  const fit = () => {{
+    const maxH = Math.max(300, window.innerHeight - 32);
+    const maxW = Math.max(150, (window.innerWidth - 40) / 2);  // two pages abreast
+    let h = Math.min(680, maxH);
+    let w = h * RATIO;
+    if (w > maxW) {{ w = maxW; h = w / RATIO; }}
+    return {{ w: Math.round(w), h: Math.round(h) }};
+  }};
+  const size = fit();
+  const apply = (s) => {{
+    const rs = document.documentElement.style;
+    rs.setProperty('--page-w', s.w + 'px');
+    rs.setProperty('--page-h', s.h + 'px');
+    // the cover shift is half the REAL page width, never a literal
+    rs.setProperty('--cover-shift-front', (-s.w / 2) + 'px');
+    rs.setProperty('--cover-shift-back', (s.w / 2) + 'px');
+  }};
+  apply(size);
+
   // A notebook opens and closes on its covers: hard front/back covers shown alone
   // and centred, soft two-page spread in between. Nothing on the page flips on a
   // click — the only turn zones are the margin square at the top-left and its
   // mirror at the top-right (see .turn in notebook.css).
   const pf = new St.PageFlip(el, {{
-    width: 520, height: 680, showCover: true, usePortrait: false,
+    width: size.w, height: size.h, showCover: true, usePortrait: false,
     showPageCorners: true, disableFlipByClick: true,
     maxShadowOpacity: 0.35, mobileScrollSupport: false,
   }});
   pf.loadFromHTML(el.querySelectorAll('.page'));
-  document.getElementById('prevZone').onclick = () => pf.flipPrev();
-  document.getElementById('nextZone').onclick = () => pf.flipNext();
+  prevZone.onclick = () => pf.flipPrev();
+  nextZone.onclick = () => pf.flipNext();
 
   // The notebook opens and closes on its covers, each a single CENTRED page.
   // StPageFlip centres the spread footprint, which parks the front cover on the
   // right half and the back cover on the left half — so shift the book by half a
   // page (in the matching direction) while a cover is showing. The turn zone with
   // nothing to turn to is hidden (a cover shows only one page).
-  const stage = document.querySelector('.stage');
-  const prevZone = document.getElementById('prevZone');
-  const nextZone = document.getElementById('nextZone');
   const syncCover = () => {{
     const i = pf.getCurrentPageIndex();
     const last = pf.getPageCount() - 1;
@@ -167,6 +192,17 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
   }};
   pf.on('flip', syncCover);
   syncCover();
+
+  // Re-fit on a material window change. A static notebook has no state worth
+  // preserving across a re-layout, so a reload is the honest response.
+  let t;
+  window.addEventListener('resize', () => {{
+    clearTimeout(t);
+    t = setTimeout(() => {{
+      const s = fit();
+      if (Math.abs(s.w - size.w) > 12 || Math.abs(s.h - size.h) > 12) location.reload();
+    }}, 250);
+  }});
 
   // StPageFlip's own corner fold fires over a diagonal/5 (~171px) zone at EVERY
   // book corner — far bigger than the page's margin square, and it includes the
