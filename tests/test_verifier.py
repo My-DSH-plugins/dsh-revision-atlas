@@ -429,3 +429,21 @@ class TestArtifactMustHaveContent(unittest.TestCase):
                     for f in rep.failures),
                 rep.render(),
             )
+
+
+class TestEmptyModule(unittest.TestCase):
+    def test_a_module_with_no_leaves_still_produces_an_artifact_tree(self):
+        """No enumerable items and no passes is legal — it must not crash (0016)."""
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(
+                "# A module\n\n## A section\n\nProse, and nothing enumerable.\n",
+                encoding="utf-8",
+            )
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertEqual(written, [])
+            module_out = root / "mindmaps" / root.name
+            self.assertTrue((module_out / "spec.json").exists())
+            self.assertTrue((module_out / "index.html").exists())

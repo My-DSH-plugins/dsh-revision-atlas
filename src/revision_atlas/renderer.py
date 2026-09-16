@@ -97,10 +97,18 @@ def _content_html(
 ) -> str:
     title = _esc(node["title"])
     kind = node.get("kind")
+    # The node's id rides on the element that wraps its TITLE, and inline, so the
+    # map can be linked INTO (`index.html#<leaf-id>`) without changing the layout
+    # the map would otherwise draw. A block wrapper here does alter it — markmap's
+    # own CSS keys off its inner div.
+    nid = _esc(node.get("id", ""))
     if kind in ("module", "section"):
-        inner = f"<b>{title}</b>"
+        inner = f'<b data-atlas-node="{nid}">{title}</b>'
     else:
-        inner = f'{title} <span style="color:#8b93a7;font-size:11px">· {kind}</span>'
+        inner = (
+            f'<span data-atlas-node="{nid}">{title}</span>'
+            f' <span style="color:#8b93a7;font-size:11px">· {kind}</span>'
+        )
     links = [
         x
         for x in (
@@ -202,7 +210,45 @@ html {{ font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 
         "<script>\n"
         "(() => {\n"
         "  const markmap = window.markmap;\n"
-        f"  window.mm = markmap.Markmap.create('svg#mindmap', {opts_json}, {tree_json});\n"
+        f"  const tree = {tree_json};\n"
+        f"  const base = {json.dumps(opts)};\n"
+        "  // A leaf's notebook links BACK to the node it belongs to, so arriving from\n"
+        "  // one should land on that leaf rather than the top of the map. The target is\n"
+        "  // identified by the id we tagged its title with; the map has to open deep\n"
+        "  // enough to reveal it, and then centre it.\n"
+        "  const wanted = decodeURIComponent((location.hash || '').slice(1)).trim();\n"
+        "  const isId = (s) => /^[a-z0-9-]+$/.test(s);\n"
+        "  const depthOf = (needle) => {\n"
+        "    const hit = (n, d) => {\n"
+        "      if (String(n.content || '').indexOf('data-atlas-node=\"' + needle + '\"') !== -1) return d;\n"
+        "      for (const c of n.children || []) { const r = hit(c, d + 1); if (r >= 0) return r; }\n"
+        "      return -1;\n"
+        "    };\n"
+        "    return hit(tree, 0);\n"
+        "  };\n"
+        "  const depth = wanted && isId(wanted) ? depthOf(wanted) : -1;\n"
+        "  // markmap expands levels 0..N-1, so revealing a node AT depth d needs d+1\n"
+        "  const opts = depth >= 0 ? { ...base, initialExpandLevel: Math.max(2, depth + 1) } : base;\n"
+        "  const mm = markmap.Markmap.create('svg#mindmap', opts, null);\n"
+        "  window.mm = mm;\n"
+        "  const focus = () => {\n"
+        "    const svg = document.querySelector('svg#mindmap');\n"
+        "    const el = document.querySelector('[data-atlas-node=\"' + wanted + '\"]');\n"
+        "    if (!el || !window.d3 || !mm.svg || !mm.zoom) return;   // never break the map\n"
+        "    const s = svg.getBoundingClientRect(), r = el.getBoundingClientRect();\n"
+        "    const t = window.d3.zoomTransform(svg);\n"
+        "    if (!t.k) return;\n"
+        "    const cx = (r.left + r.width / 2 - s.left - t.x) / t.k;\n"
+        "    const cy = (r.top + r.height / 2 - s.top - t.y) / t.k;\n"
+        "    const nt = window.d3.zoomIdentity\n"
+        "      .translate(s.width / 2 - cx * t.k, s.height / 2 - cy * t.k)\n"
+        "      .scale(t.k);\n"
+        "    // applied at once, not animated: you are ARRIVING at a leaf you chose,\n"
+        "    // so there is nothing to glide from. It also keeps this verifiable —\n"
+        "    // a d3 transition does not advance under a headless virtual clock.\n"
+        "    window.d3.select(svg).call(mm.zoom.transform, nt);\n"
+        "  };\n"
+        "  mm.setData(tree).then(() => { mm.fit(); if (depth >= 0) focus(); });\n"
         "  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {\n"
         "    document.documentElement.classList.add('markmap-dark');\n"
         "  }\n"

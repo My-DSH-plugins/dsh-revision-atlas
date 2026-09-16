@@ -504,6 +504,10 @@ def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
     module_slug = Path(inv["root"]).name
     write_shared_assets(out_root)
     module_dir = Path(out_root) / module_slug
+    # A module can legitimately have NO leaves — no enumerable items and no agent
+    # passes — and then nothing else creates this directory, so writing the
+    # derived contract failed with a bare FileNotFoundError.
+    module_dir.mkdir(parents=True, exist_ok=True)
     leaves = [n for n in iter_leaves(spec["root"]) if owns_content(n)]
     written: List[Path] = []
     for leaf in leaves:
@@ -513,7 +517,11 @@ def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
         leaf_dir = module_dir / "leaves" / leaf_dir_id(leaf)
         leaf_dir.mkdir(parents=True, exist_ok=True)
         out = leaf_dir / "notebook.html"
-        out.write_text(render_notebook(leaf), encoding="utf-8")
+        # the way back lands on THIS leaf, not the top of the map
+        out.write_text(
+            render_notebook(leaf, map_href=f"../../index.html#{leaf['id']}"),
+            encoding="utf-8",
+        )
         written.append(out)
     (module_dir / "spec.json").write_text(json.dumps(spec, indent=2), encoding="utf-8")
     return written
