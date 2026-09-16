@@ -95,7 +95,7 @@ LEAF_KINDS = frozenset(
 )
 
 
-def _leaf_range(inv: dict, node: dict):
+def leaf_range(inv: dict, node: dict):
     """Return (start, end) of the line range a node owns in its source file.
 
     A heading node owns from its own line to the next heading of ANY rank — so a
@@ -118,7 +118,7 @@ def _checklist_seed(inv: dict, node: dict) -> list:
     claims) and the human approves the combined checklist at Gate 2.
     """
     file = node["file"]
-    start, end = _leaf_range(inv, node)
+    start, end = leaf_range(inv, node)
     items = []
     for d in inv["details_blocks"].get(file, []):
         if start <= d["line"] < end:
