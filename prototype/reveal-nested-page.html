@@ -1,0 +1,351 @@
+<!doctype html>
+<!--
+  MOCKUP — a nested page for the self-test reveal (ticket 0010).
+
+  A throwaway notebook, not course data. It uses the REAL ruled-page CSS and the
+  real flip engine (`src/revision_atlas/assets/`), so what you judge is the
+  notebook's actual geometry, type and paper — not an approximation of it.
+
+  What it demonstrates: the reveal is bounded to ONE outer page, and the answer
+  itself is paginated inside a nested sheet with its own pager at the bottom.
+  Three nested pages, since that is what the mockup was asked for.
+
+  FROZEN — this design was accepted and is now the product: the `.reveal*` rules
+  live in `src/revision_atlas/assets/notebook.css` and `_selftest_html()` emits
+  this markup. This file is kept as the design record (the thing that was
+  reviewed); the shipped copy is the source of truth, so do not edit the styling
+  here expecting it to ship.
+-->
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Why the sky is blue — nested reveal mockup</title>
+<link rel="stylesheet" href="../src/revision_atlas/assets/page-flip.css" />
+<link rel="stylesheet" href="../src/revision_atlas/assets/notebook.css" />
+<style>
+/* ═══ PROPOSED ADDITION — the nested reveal ══════════════════════════════════
+   A page inside the page. The outer page stays exactly one page tall (the leaf's
+   page budget does not move), and the answer paginates inside a smaller sheet
+   lying on it, with its own finer ruling so it reads as a separate leaf of paper
+   rather than as more of the same page.
+
+   Everything is a ratio of --page-w / --page-h, like the rest of the notebook, so
+   it scales with the fitted page instead of drifting at another window size. */
+
+:root {
+  /* the nested sheet writes smaller and tighter than the page it sits on */
+  --nested-line: calc(var(--line) * 0.62);
+}
+
+.page-selftest { display: block; }
+
+/* StPageFlip sets `display: block` on .page, so the column layout lives on an
+   inner wrapper — the same trap `.page-cover` hit with `.cover-body`. */
+.selftest-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* the prompt keeps its own height; the sheet takes everything left */
+.selftest-body > p { flex: none; }
+
+/* The answer stays hidden until it is asked for — the native disclosure the
+   notebook already uses, so the ">" marker, its rotation and the keyboard/AT
+   behaviour come for free. It must be the flex item that GROWS, which means the
+   disclosure's content box needs the flex context too. In current Chrome that
+   box is `::details-content`; before that pseudo existed the children were
+   direct, so both spellings are declared and either layout gets a flex column. */
+.reveal-disclosure {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.reveal-disclosure > summary { flex: none; }
+/* The flex column needs a `display` on the disclosure's content, and an author
+   `display` BEATS the UA's own hide-the-content rule in Chrome's pre-
+   `::details-content` implementation — which silently left the answer on screen
+   while the marker said it was closed. Re-assert the hiding ourselves, in both
+   spellings, so closed means closed either way. (Measured: without this,
+   `.reveal-sheet` kept a non-zero height while `[open]` was absent.) */
+.reveal-disclosure:not([open])::details-content { display: none; }
+.reveal-disclosure:not([open]) > *:not(summary) { display: none; }
+.reveal-disclosure::details-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.reveal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.reveal-sheet {
+  flex: 1 1 auto;
+  min-height: 0;              /* without this the sheet grows and the pager clips */
+  margin-top: calc(var(--line) * 0.35);
+  /* The page's writing starts a `--text-gap` to the RIGHT of the red margin rule
+     — the rule sits at exactly the content-box edge, so a box drawn at that edge
+     lands ON it. The sheet starts where the writing starts. */
+  margin-left: calc(var(--text-gap) * 1.15);
+  position: relative;
+  overflow: hidden;
+  background-color: #fffdf6;
+  /* the sheet's own ruling, finer than the page's — one line per written line */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--nested-line) - 1px),
+    rgba(185, 205, 240, 0.75) calc(var(--nested-line) - 1px),
+    rgba(185, 205, 240, 0.75) var(--nested-line)
+  );
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  border: 1px solid rgba(37, 99, 235, 0.26);
+  border-radius: 3px;
+  /* a real lifted leaf: a crisp contact edge under it, then a soft cast shadow */
+  box-shadow:
+    0 1px 1px rgba(26, 26, 46, 0.10),
+    0 3px 6px -2px rgba(26, 26, 46, 0.18),
+    0 12px 22px -10px rgba(26, 26, 46, 0.42);
+  padding: var(--nested-line) calc(var(--nested-line) * 0.9);
+  font-size: calc(var(--ink-size) * 0.78);
+  line-height: var(--nested-line);
+  color: var(--ink);
+}
+
+.reveal-page { display: block; }
+.reveal-page[hidden] { display: none; }
+/* a short fade so the reader sees the answer change, not just the counter */
+.reveal-page:not([hidden]) { animation: reveal-in 160ms ease-out; }
+@keyframes reveal-in { from { opacity: 0; } to { opacity: 1; } }
+
+.reveal-page h3 {
+  font-size: calc(var(--ink-size) * 0.86);
+  color: var(--accent);
+  line-height: var(--nested-line);
+  font-weight: 400;
+}
+.reveal-page ul { list-style: none; padding-left: 0; }
+.reveal-page li { line-height: var(--nested-line); }
+.reveal-page li::before { content: "— "; color: var(--accent); }
+
+.reveal-pager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--nested-line) * 0.6);
+  margin-top: calc(var(--line) * 0.3);
+  margin-left: calc(var(--text-gap) * 1.15);   /* aligned with the sheet above it */
+}
+.reveal-pager button {
+  font: inherit;
+  font-size: calc(var(--ink-size) * 0.76);
+  line-height: 1;
+  padding: calc(var(--ink-size) * 0.42) calc(var(--ink-size) * 0.6);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.reveal-pager button:hover:not(:disabled) { background: rgba(37, 99, 235, 0.14); }
+.reveal-pager button:disabled {
+  color: #a9b0c0;
+  background: transparent;
+  border-color: rgba(26, 26, 46, 0.12);
+  cursor: default;
+}
+.reveal-pager .pager-count {
+  font-size: calc(var(--ink-size) * 0.76);
+  color: #8b93a7;
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="book" id="book">
+
+    <div class="page page-cover" data-density="hard">
+      <div class="cover-body">
+        <h1>Why the sky is blue</h1>
+        <div class="muted">mockup · a leaf whose reveal is a 3-page nested sheet</div>
+      </div>
+    </div>
+
+    <div class="page">
+      <h2>Recall</h2>
+      <ul>
+        <li>Sunlight is broadband white; air molecules scatter it.</li>
+        <li>Rayleigh regime: intensity ∝ 1/λ⁴.</li>
+        <li>450nm scatters ~5x more than 650nm.</li>
+        <li>Violet scatters harder still — and we still see blue.</li>
+      </ul>
+    </div>
+
+    <div class="page page-selftest">
+      <div class="selftest-body">
+        <h2>Self-test</h2>
+        <p>Sunlight carries every visible wavelength. Explain why the sky we
+        look at is blue rather than violet — and where else the same mechanism
+        shows up.</p>
+
+        <details class="reveal-disclosure">
+        <summary>Reveal answer</summary>
+        <div class="reveal-body">
+        <div class="reveal-sheet">
+          <div class="reveal-page">
+            <h3>1 · The mechanism</h3>
+            <ul>
+              <li>Air molecules are far smaller than λ — the Rayleigh regime.</li>
+              <li>Scattered intensity ∝ 1/λ⁴, so λ dominates everything else.</li>
+              <li>450nm vs 650nm: (650/450)⁴ ≈ 4.4–5.5x more blue redirected.</li>
+              <li>White light comes in; blue is what gets steered at your eye.</li>
+              <li>So the sky's colour is borrowed sunlight, not emitted light.</li>
+            </ul>
+          </div>
+          <div class="reveal-page" hidden>
+            <h3>2 · Why not violet</h3>
+            <ul>
+              <li>Violet (~400nm) scatters harder than blue (~450nm).</li>
+              <li>But the Sun puts out less violet than blue to begin with.</li>
+              <li>Ozone absorbs a slice of the violet band on the way in.</li>
+              <li>Our S-cones are far weaker at 400nm than at 480nm.</li>
+              <li>The eye sums that short-wavelength mix and reports blue.</li>
+            </ul>
+          </div>
+          <div class="reveal-page" hidden>
+            <h3>3 · Where else it shows</h3>
+            <ul>
+              <li>Sunset: a longer path scatters the blue out — red survives.</li>
+              <li>Clouds are white: Mie scattering is wavelength-independent.</li>
+              <li>From orbit there is no air, so there is nothing to scatter.</li>
+              <li>Snow in shade reads blue — lit only by the sky.</li>
+              <li>Direct sunlight is the blue subtracted: warm, or yellow.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="reveal-pager">
+          <button type="button" data-dir="prev" aria-label="Previous reveal page">‹ Previous</button>
+          <span class="pager-count" aria-live="polite">1 / 3</span>
+          <button type="button" data-dir="next" aria-label="Next reveal page">Next ›</button>
+        </div>
+        </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="page">
+      <h2>Source audit</h2>
+      <div class="source">
+        <div>[src README.md:12] Rayleigh scattering — intensity ∝ 1/λ⁴</div>
+        <div>[details] why violet does not win</div>
+        <div>[details] sunset geometry — a longer optical path</div>
+        <div>[diagram] mermaid · scattering regimes by particle size</div>
+      </div>
+    </div>
+
+    <div class="page page-cover" data-density="hard">
+      <div class="cover-body">
+        <h1>Why the sky is blue</h1>
+        <div class="muted">Revision Atlas · mockup</div>
+      </div>
+    </div>
+
+  </div>
+  <button class="turn turn-prev" id="prevZone" type="button" aria-label="Previous page"></button>
+  <button class="turn turn-next" id="nextZone" type="button" aria-label="Next page"></button>
+</div>
+
+<script src="../src/revision_atlas/assets/page-flip.browser.js"></script>
+<script>
+// ── the nested reveal: swap pages, keep every answer, disable the ends ───────
+(() => {
+  for (const reveal of document.querySelectorAll('.reveal-sheet')) {
+    const pages = reveal.querySelectorAll('.reveal-page');
+    const pager = reveal.parentElement.querySelector('.reveal-pager');
+    const count = pager.querySelector('.pager-count');
+    const prev = pager.querySelector('[data-dir="prev"]');
+    const next = pager.querySelector('[data-dir="next"]');
+    let i = 0;
+
+    const render = () => {
+      pages.forEach((p, n) => { p.hidden = n !== i; });
+      count.textContent = (i + 1) + ' / ' + pages.length;
+      prev.disabled = i === 0;
+      next.disabled = i === pages.length - 1;
+    };
+    prev.addEventListener('click', () => { if (i > 0) { i--; render(); } });
+    next.addEventListener('click', () => { if (i < pages.length - 1) { i++; render(); } });
+    render();
+  }
+})();
+
+// ── the notebook itself: same sizing and flip as the real generator ──────────
+(() => {
+  const el = document.getElementById('book');
+  const stage = document.querySelector('.stage');
+  const prevZone = document.getElementById('prevZone');
+  const nextZone = document.getElementById('nextZone');
+
+  const RATIO = 520 / 680;
+  const fit = () => {
+    const maxH = Math.max(300, window.innerHeight - 32);
+    const maxW = Math.max(150, (window.innerWidth - 40) / 2);
+    let h = Math.min(680, maxH);
+    let w = h * RATIO;
+    if (w > maxW) { w = maxW; h = w / RATIO; }
+    return { w: Math.round(w), h: Math.round(h) };
+  };
+  const size = fit();
+  const apply = (s) => {
+    const rs = document.documentElement.style;
+    rs.setProperty('--page-w', s.w + 'px');
+    rs.setProperty('--page-h', s.h + 'px');
+    rs.setProperty('--cover-shift-front', (-s.w / 2) + 'px');
+    rs.setProperty('--cover-shift-back', (s.w / 2) + 'px');
+  };
+  apply(size);
+
+  // `showPageCorners: false` — the mockup is about the nested sheet, so the
+  // engine's own wide corner fold is off and only the margin squares turn pages.
+  const pf = new St.PageFlip(el, {
+    width: size.w, height: size.h, showCover: true, usePortrait: false,
+    showPageCorners: false, disableFlipByClick: true,
+    maxShadowOpacity: 0.35, mobileScrollSupport: false,
+  });
+  pf.loadFromHTML(el.querySelectorAll('.page'));
+
+  const syncCover = () => {
+    const i = pf.getCurrentPageIndex();
+    const last = pf.getPageCount() - 1;
+    stage.classList.toggle('at-front', i === 0);
+    stage.classList.toggle('at-back', i === last && last > 0);
+    prevZone.classList.toggle('is-hidden', i === 0);
+    nextZone.classList.toggle('is-hidden', i >= last);
+  };
+  pf.on('flip', syncCover);
+  syncCover();
+  prevZone.onclick = () => pf.flipPrev();
+  nextZone.onclick = () => pf.flipNext();
+
+  let t;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      const s = fit();
+      if (Math.abs(s.w - size.w) > 12 || Math.abs(s.h - size.h) > 12) location.reload();
+    }, 250);
+  });
+})();
+</script>
+</body>
+</html>

@@ -123,14 +123,102 @@ def _diagram_html(d: dict) -> str:
     return '<h2>Diagram</h2><div class="diagram">' + d["svg"] + "</div>"
 
 
+# The nested sheet's capacity, in nested lines, measured against the shipped CSS
+# at the reference page box (520x680) and expressed as lines rather than pixels
+# because the sheet's ruling is itself a ratio of the page — so this holds at any
+# fitted size. `_NESTED_CAP_1LINE` is the usable height with a one-line prompt;
+# every further prompt line costs `_NESTED_PROMPT_COST` of it. Both carry slack:
+# an over-full nested page would clip, which is the defect this whole mechanism
+# exists to remove (ticket 0010).
+_NESTED_CHARS = 56          # characters charged per nested line. Measured against
+                            # the shipped CSS by sweeping the constant: 56 fills the
+                            # fuller pages to ~86% with nothing overflowing, while 64
+                            # overflows every page. `reveal-page`'s `overflow-y: auto`
+                            # is the net under this estimate.
+_NESTED_CAP_1LINE = 16      # usable nested lines when the prompt is one page line
+                            # (measured ~17.2 at 520x680; the ratio holds at every
+                            # fitted size, since the sheet's ruling scales too)
+_NESTED_PROMPT_COST = 1.7   # nested lines consumed by each further prompt line (measured)
+_PROMPT_CHARS = 46          # characters that fit on one PAGE line of the prompt
+
+
+def _nested_budget(prompt: str) -> int:
+    """How many nested lines a page's sheet can hold for this prompt."""
+    prompt_lines = max(1, -(-len(prompt) // _PROMPT_CHARS))
+    return max(3, int(_NESTED_CAP_1LINE - _NESTED_PROMPT_COST * (prompt_lines - 1)))
+
+
+def _reveal_line_html(line: str) -> str:
+    text = line.strip()
+    bullet = text.startswith(("- ", "* "))
+    if bullet:
+        text = text[2:].strip()
+    cls = ' class="reveal-bullet"' if bullet else ""
+    return f"<p{cls}>{_esc(text)}</p>"
+
+
+def _chunk_reveal(reveal: str, prompt: str = "") -> List[List[str]]:
+    """Paginate a reveal into nested pages that each fit the sheet.
+
+    The same job `_chunk_source` does for the source audit, and for the same
+    reason: the sheet is a fixed piece of paper with `overflow: hidden`, so text
+    that does not fit is not merely ugly, it is gone. Each source line is charged
+    the nested lines it will wrap onto, and a chunk is closed before it would
+    exceed the budget. The charge is fractional rather than a per-line `ceil`: a
+    line wrapping to 2.1 lines must cost 2.1, or every line landing just past a
+    multiple is billed a whole extra line and the sheet ships two-thirds empty.
+    """
+    budget = _nested_budget(prompt)
+    chunks: List[List[str]] = []
+    current: List[str] = []
+    used = 0.0
+    for line in (l for l in reveal.splitlines() if l.strip()):
+        cost = max(1.0, len(line.strip()) / _NESTED_CHARS)
+        if current and used + cost > budget:
+            chunks.append(current)
+            current, used = [], 0.0
+        current.append(line)
+        used += cost
+    if current:
+        chunks.append(current)
+    return chunks or [[]]
+
+
 def _selftest_html(node: dict) -> str:
-    inner = f"<p>{_esc(node['prompt'])}</p>"
-    if node.get("reveal"):
-        inner += (
-            "<details><summary>Reveal answer</summary>"
-            f"<p>{_esc(node['reveal'])}</p></details>"
+    """The self-test page: the prompt, then the answer behind a ">" disclosure.
+
+    The answer is a nested, paginated sheet rather than free-flowing prose — the
+    outer page keeps its one-page budget, and the reveal is conserved whatever its
+    length (ticket 0010).
+    """
+    prompt = node.get("prompt") or ""
+    inner = f'<h2>Self-test</h2><div class="selftest-body"><p>{_esc(prompt)}</p>'
+    reveal = (node.get("reveal") or "").strip()
+    if reveal:
+        chunks = _chunk_reveal(reveal, prompt)
+        pages = "".join(
+            '<div class="reveal-page"%s>%s</div>'
+            % (" hidden" if i else "", "".join(_reveal_line_html(l) for l in chunk))
+            for i, chunk in enumerate(chunks)
         )
-    return "<h2>Self-test</h2>" + inner
+        pager = ""
+        if len(chunks) > 1:
+            last = len(chunks) - 1
+            pager = (
+                '<div class="reveal-pager">'
+                '<button type="button" data-dir="prev" aria-label="Previous reveal page"'
+                ' disabled>&lsaquo; Previous</button>'
+                f'<span class="pager-count" aria-live="polite">1 / {len(chunks)}</span>'
+                '<button type="button" data-dir="next" aria-label="Next reveal page"'
+                f"{' disabled' if last == 0 else ''}>Next &rsaquo;</button>"
+                "</div>"
+            )
+        inner += (
+            '<details class="reveal-disclosure"><summary>Reveal answer</summary>'
+            f'<div class="reveal-body"><div class="reveal-sheet">{pages}</div>{pager}</div>'
+            "</details>"
+        )
+    return inner + "</div>"
 
 
 def _source_row(item: dict) -> str:
@@ -165,7 +253,8 @@ def _pages(node: dict) -> List[Tuple[str, str, str]]:
         if d.get("svg"):
             pages.append(("soft", "page-diagram", _diagram_html(d)))
     if node.get("prompt") or node.get("reveal"):
-        pages.append(("soft", "", _selftest_html(node)))
+        # `page-selftest` names the page whose inner body does the column layout
+        pages.append(("soft", "page-selftest", _selftest_html(node)))
     src = node.get("source", [])
     if src:
         chunks = _chunk_source(src)
@@ -245,6 +334,30 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
   // actually has, so the book never overflows and content is never clipped. The
   // ruling's geometry is all ratios of --page-w / --page-h, so it scales with it.
   const RATIO = 520 / 680;
+  // --- the nested reveal: swap pages, conserve every answer -------------------
+  // The pager sits at the BOTTOM of the page, which is the one region of the
+  // notebook with no turn zone (the turn squares are the top margin corners), so
+  // a click on it can never turn the book instead of the answer. Independent of
+  // the flip, and it only touches its own sheet.
+  for (const reveal of el.querySelectorAll('.reveal-sheet')) {{
+    const pages = reveal.querySelectorAll('.reveal-page');
+    const pager = reveal.parentElement.querySelector('.reveal-pager');
+    if (!pager) continue;                       // a one-page answer needs no pager
+    const count = pager.querySelector('.pager-count');
+    const prev = pager.querySelector('[data-dir="prev"]');
+    const next = pager.querySelector('[data-dir="next"]');
+    let i = 0;
+    const render = () => {{
+      pages.forEach((p, n) => {{ p.hidden = n !== i; }});
+      count.textContent = (i + 1) + ' / ' + pages.length;
+      prev.disabled = i === 0;
+      next.disabled = i === pages.length - 1;
+    }};
+    prev.addEventListener('click', () => {{ if (i > 0) {{ i--; render(); }} }});
+    next.addEventListener('click', () => {{ if (i < pages.length - 1) {{ i++; render(); }} }});
+    render();
+  }}
+
   const fit = () => {{
     const maxH = Math.max(300, window.innerHeight - 32);
     const maxW = Math.max(150, (window.innerWidth - 40) / 2);  // two pages abreast

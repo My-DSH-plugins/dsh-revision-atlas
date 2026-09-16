@@ -221,3 +221,162 @@ details summary { cursor: pointer; color: var(--accent); }
 /* the non-bullet source items (collapsibles, mermaid blocks) read as audit
    markers, quieter than the prose they sit among */
 .source .src-details, .source .src-mermaid { color: #7b8494; }
+
+/* --- the nested reveal (self-test page) ------------------------------------
+ *
+ * The reveal is the one block of a leaf that can grow without bound — the pass
+ * that writes it has a word budget for `recall` and none for `reveal` — and the
+ * page it sits on is a fixed sheet of paper. So the answer gets a page inside the
+ * page: the outer page stays exactly one page tall (the leaf's page budget does
+ * not move), and the answer paginates inside a smaller sheet lying on it, with
+ * its own finer ruling so it reads as a separate leaf of paper.
+ *
+ * Everything is a ratio of --page-w / --page-h like the rest of this file, so the
+ * sheet holds the same number of lines at any fitted page size — which is what
+ * lets the generator decide the chunk size in Python without knowing the window.
+ */
+:root {
+  /* the nested sheet writes smaller and tighter than the page it sits on */
+  --nested-line: calc(var(--line) * 0.62);
+}
+
+/* StPageFlip sets `display: block` on .page, so the column layout lives on an
+   inner wrapper — the same trap `.page-cover` hit with `.cover-body`. */
+.selftest-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* the prompt keeps its own height; the sheet takes everything left over, which
+   is what makes "bounded to one page" true by construction rather than by care */
+.selftest-body > p { flex: none; }
+
+/* The answer stays hidden until it is asked for — a native disclosure, so the
+   ">" marker, its rotation and the keyboard/AT behaviour come for free. It has to
+   be the flex item that GROWS, so the disclosure's content box needs the flex
+   context too: in current Chrome that box is `::details-content`, and before that
+   pseudo existed the children were direct. Both spellings are declared. */
+.reveal-disclosure {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.reveal-disclosure > summary { flex: none; }
+.reveal-disclosure::details-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* ...and because an author `display` BEATS the UA's own hide-the-content rule in
+   Chrome's pre-`::details-content` implementation, the hiding is re-asserted here.
+   Without this the marker says "closed" while the answer stays on the page. */
+.reveal-disclosure:not([open])::details-content { display: none; }
+.reveal-disclosure:not([open]) > *:not(summary) { display: none; }
+
+.reveal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.reveal-sheet {
+  flex: 1 1 auto;
+  min-height: 0;              /* without this the sheet grows and the pager clips */
+  margin-top: calc(var(--line) * 0.35);
+  /* The page's writing starts a `--text-gap` right of the red margin rule (the
+     rule sits at exactly the content-box edge), and `.page details` already
+     carries that indent — so a sheet drawn at the details' edge would sit ON the
+     rule. This nudges it clear of it. */
+  margin-left: calc(var(--text-gap) * 1.15);
+  position: relative;
+  overflow: hidden;
+  background-color: #fffdf6;
+  /* the sheet's own ruling, finer than the page's — one line per written line */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--nested-line) - 1px),
+    rgba(185, 205, 240, 0.75) calc(var(--nested-line) - 1px),
+    rgba(185, 205, 240, 0.75) var(--nested-line)
+  );
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  border: 1px solid rgba(37, 99, 235, 0.26);
+  border-radius: 3px;
+  /* a real lifted leaf: a crisp contact edge under it, then a soft cast shadow */
+  box-shadow:
+    0 1px 1px rgba(26, 26, 46, 0.10),
+    0 3px 6px -2px rgba(26, 26, 46, 0.18),
+    0 12px 22px -10px rgba(26, 26, 46, 0.42);
+  padding: var(--nested-line) calc(var(--nested-line) * 0.9);
+  font-size: calc(var(--ink-size) * 0.78);
+  line-height: var(--nested-line);
+  color: var(--ink);
+}
+
+/* The generator sets the page count from measured line budgets; this is the belt
+   to that estimate's braces. If a chunk ever overflows anyway — text that packs
+   worse than the average it was charged for — the page SCROLLS rather than
+   clipping. A scrollbar inside a nested page is a blemish; silently losing the
+   end of an answer is the defect this mechanism exists to remove (0010). */
+.reveal-page { display: block; height: 100%; overflow-y: auto; }
+.reveal-page[hidden] { display: none; }
+/* a short fade so the reader sees the answer change, not just the counter */
+.reveal-page:not([hidden]) { animation: reveal-in 160ms ease-out; }
+@keyframes reveal-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The nested text is already inside the sheet's own padding, so it must not take
+   the page's writing indent a second time — `.page p` would otherwise push every
+   nested line in by another `--text-gap`. (Declared after it, at higher
+   specificity, because the two selectors are otherwise equally specific.) */
+.reveal-sheet .reveal-page p,
+.reveal-sheet .reveal-page h3,
+.reveal-sheet .reveal-page ul { padding-left: 0; padding-right: 0; margin: 0; }
+
+.reveal-sheet .reveal-page h3 {
+  font-size: calc(var(--ink-size) * 0.86);
+  color: var(--accent);
+  line-height: var(--nested-line);
+  font-weight: 400;
+}
+.reveal-sheet .reveal-page .reveal-bullet::before {
+  content: "— ";
+  color: var(--accent);
+}
+
+.reveal-pager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--nested-line) * 0.6);
+  margin-top: calc(var(--line) * 0.3);
+  margin-left: calc(var(--text-gap) * 1.15);   /* aligned with the sheet above it */
+}
+.reveal-pager button {
+  font: inherit;
+  font-size: calc(var(--ink-size) * 0.76);
+  line-height: 1;
+  padding: calc(var(--ink-size) * 0.42) calc(var(--ink-size) * 0.6);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.reveal-pager button:hover:not(:disabled) { background: rgba(37, 99, 235, 0.14); }
+.reveal-pager button:disabled {
+  color: #a9b0c0;
+  background: transparent;
+  border-color: rgba(26, 26, 46, 0.12);
+  cursor: default;
+}
+.reveal-pager .pager-count {
+  font-size: calc(var(--ink-size) * 0.76);
+  color: #8b93a7;
+}

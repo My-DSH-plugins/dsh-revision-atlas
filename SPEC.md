@@ -212,6 +212,14 @@ leaf:
 - **Leaf → a notebook of N pages**, not one sheet; page count = f(checklist
   size), roughly one topic-block per page, one chart per page, one "remember"
   spread per leaf.
+- **The reveal is a page inside the page.** The self-test's answer is the one
+  block of a leaf that can grow without bound, and a page is a fixed sheet of
+  paper — so the answer lives in a nested, finer-ruled sheet with its own pager.
+  That keeps the leaf's page budget stable and conserves the answer at any
+  length. The generator chunks it into nested pages from measured line budgets,
+  and the sheet scrolls rather than clipping if an estimate is ever wrong:
+  nothing load-bearing may vanish silently, and a hidden answer that turns out
+  half-clipped when asked for is exactly that.
 - **Flip interaction**: touch drag/swipe with hard/soft cover feel; candidate
   StPageFlip (vanilla, offline, mobile); hand-rolled CSS 3D as fallback.
 - **Pages are HTML fragments**, not raster images — so they stay crisp at any

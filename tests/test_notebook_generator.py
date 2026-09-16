@@ -5,7 +5,10 @@ from pathlib import Path
 
 from revision_atlas.notebook_generator import (
     SHARED_ASSETS,
+    _chunk_reveal,
+    _nested_budget,
     _pages,
+    _selftest_html,
     render_notebook,
     write_shared_assets,
 )
@@ -24,6 +27,64 @@ def _full_leaf():
         "source": [{"kind": "bullet", "line": 1, "text": "a bullet"},
                    {"kind": "details", "line": 2, "text": "Collapsible A"}],
     }
+
+
+class TestNestedReveal(unittest.TestCase):
+    """The reveal is paginated inside the page, not clipped by it (ticket 0010)."""
+
+    def _long(self):
+        return "\n".join(
+            "- Step %d. " % i + "the mechanism narrows here because the fitted "
+            "distribution sets the limit and the run rule decides when to fire"
+            for i in range(1, 26)
+        )
+
+    def test_a_long_reveal_is_chunked_and_nothing_is_dropped(self):
+        reveal = self._long()
+        chunks = _chunk_reveal(reveal, "a short prompt?")
+        self.assertGreater(len(chunks), 1)
+        # every line survives, in order, exactly once
+        flat = [l for c in chunks for l in c]
+        self.assertEqual(flat, [l for l in reveal.splitlines() if l.strip()])
+
+    def test_every_chunk_stays_inside_the_line_budget(self):
+        prompt = "x" * 130                      # a three-line prompt
+        budget = _nested_budget(prompt)
+        for chunk in _chunk_reveal(self._long(), prompt):
+            cost = sum(max(1.0, len(l.strip()) / 56.0) for l in chunk)
+            self.assertLessEqual(cost, budget, chunk[:1])
+
+    def test_a_longer_prompt_leaves_room_for_fewer_lines(self):
+        self.assertLess(_nested_budget("x" * 280), _nested_budget("short?"))
+
+    def test_a_short_reveal_is_one_page_and_gets_no_pager(self):
+        html = _selftest_html({"prompt": "why?", "reveal": "- one\n- two"})
+        self.assertIn('<div class="reveal-page">', html)
+        self.assertNotIn("reveal-pager", html)          # nothing to page through
+        self.assertNotIn(" hidden", html)
+
+    def test_the_answer_hides_behind_the_disclosure(self):
+        html = _selftest_html({"prompt": "why?", "reveal": "- one\n- two\n- three"})
+        self.assertIn('<details class="reveal-disclosure">', html)
+        self.assertIn("<summary>Reveal answer</summary>", html)
+        self.assertIn('<div class="reveal-sheet">', html)
+
+    def test_a_paginated_reveal_gets_a_pager_and_only_page_one_shows(self):
+        html = _selftest_html({"prompt": "why?", "reveal": self._long()})
+        self.assertIn("reveal-pager", html)
+        self.assertIn("pager-count", html)
+        self.assertIn(" disabled", html)                 # "Previous" starts disabled
+        self.assertEqual(html.count(" hidden>"), html.count('<div class="reveal-page"') - 1)
+
+    def test_a_prompt_without_a_reveal_has_no_sheet(self):
+        html = _selftest_html({"prompt": "why?"})
+        self.assertIn("Self-test", html)
+        self.assertNotIn("reveal-sheet", html)
+
+    def test_bullet_lines_keep_the_hand_written_bullet(self):
+        html = _selftest_html({"prompt": "q", "reveal": "- a bullet"})
+        self.assertIn('class="reveal-bullet"', html)
+        self.assertNotIn("- a bullet", html)             # the dash becomes the marker
 
 
 class TestPages(unittest.TestCase):

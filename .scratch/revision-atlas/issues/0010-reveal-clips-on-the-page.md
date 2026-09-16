@@ -2,7 +2,9 @@
 
 - **Blocked by:** 0006 (notebook), the recall pass
 - **Blocks:** —
-- **Status:** OPEN — measured; fix not chosen
+- **Status:** done — **frozen**: the nested sheet (option A), prototyped for review and then
+  folded into `notebook.css` + `_selftest_html()`. One part is deliberately left open — the
+  recall pass still has no budget for `reveal`; see the end of this file.
 
 ## The defect
 
@@ -65,3 +67,65 @@ PYTHONPATH=src python3 -m revision_atlas.build <M5> --mindmaps /tmp/out \
 # then load a leaf's notebook, open every <details>, and compare
 # .page scrollHeight against clientHeight - padding
 ```
+
+---
+
+## Resolved — the nested sheet (frozen)
+
+**Decision.** Option A, but built as *a page inside the page* rather than extra
+sibling pages: the answer lives in a smaller, finer-ruled sheet on the self-test
+page, with its own `‹ Previous · n / N · Next ›` pager at the bottom. Sibling
+continuation pages were the alternative — simpler, no new state — but they grow the
+leaf's page count and drop the prompt, which is the context that makes a self-test
+a self-test.
+
+Why this medium suits it, measured rather than assumed:
+
+- The sheet is `flex: 1` inside the page's column, so the **outer page cannot
+  overflow by construction** — it absorbs whatever the prompt leaves. `bounded to
+  one page` is a property of the layout, not of anyone's care.
+- Every dimension is a ratio of `--page-w`/`--page-h`, so the sheet holds the
+  **same number of nested lines at any fitted size** (measured: 274 px usable at
+  520×680 = 13.8 nested lines; 168 px at 320×418 = 13.8 nested lines). That is
+  what lets the generator pick the chunk size in Python without knowing the window.
+- The pager sits at the **bottom**, the one region with no turn zone (the turn
+  squares are the top margin corners), so it can never be confused with a page turn.
+
+**Implementation.** `.reveal*` rules in `notebook.css`; `_chunk_reveal()` +
+`_selftest_html()` in `notebook_generator.py`; the pager JS in the notebook's own
+inline script (runs before the flip, touches only its own sheet).
+
+`_NESTED_CHARS = 56` was **swept, not guessed**: the value that fills the fuller
+pages to ~86% with nothing overflowing, where 64 overflows every page. The first
+two estimates (40, then 64) were both wrong in opposite directions and produced 13
+half-empty pages; the constant now carries the measurement and its provenance.
+
+**The safety net.** `.reveal-page { height: 100%; overflow-y: auto }`. The line
+budget is an estimate; if a chunk ever overflows anyway — text packing worse than
+the average it was charged for — that page scrolls instead of clipping. A
+scrollbar inside a nested page is a blemish; losing the end of an answer is the
+defect this ticket exists for.
+
+**Evidence.**
+- 550-word reveal (the real M5 worst case) → 7 nested pages, **0 of 7 overflow**,
+  no JS errors, counter `1 / 7`; `next ×2 → 3 / 7` showing "Step 9", end at
+  `7 / 7` with Next disabled, `prev → 6 / 7`.
+- Collapsed: the sheet is genuinely not rendered (`checkVisibility() === false`) —
+  and it took an explicit re-assert of the hiding, because the flex column needs an
+  author `display` on the disclosure's content, which **beats the UA's own
+  hide-the-content rule** in Chrome's pre-`::details-content` implementation.
+  Without it the marker said "closed" while the answer stayed on the page.
+- Chunking conserves every line, in order, exactly once (test).
+- 8 new tests; 73 green.
+
+## Still open — the reveal has no budget
+
+Nested paging makes the notebook *robust* to an unbounded reveal; it does not make
+the reveal *good*. SPEC §8 calls `reveal` "the compact structure the learner should
+have reproduced", and `recall-pass.md` bounds `recall` at ≤60 words while leaving
+`reveal` unbounded — this run produced up to 549 words, which is a 7-page nested
+answer where one page was wanted.
+
+`0012` (the skill) should carry the fix: give the recall pass a reveal budget so the
+pager is a safety net rather than the normal case, and keep the nested sheet as the
+guarantee that nothing is ever lost when a pass overshoots anyway.

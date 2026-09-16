@@ -52,6 +52,13 @@ A leaf's notes, paginated into several pages with a flip interaction — the
 replacement for a single-page notes file.
 _Avoid_: notes page, sheet
 
+**Nested sheet**:
+The finer-ruled page inside a self-test page that holds the reveal, with its own
+pager. It exists because the reveal is the one unbounded block in a leaf: the
+outer page keeps a fixed page budget, and the answer is conserved beside it at
+any length.
+_Avoid_: inner page, sub-page, overlay
+
 **Relationship**:
 A typed edge between nodes (see below). The type is extracted from evidence,
 never guessed silently.
