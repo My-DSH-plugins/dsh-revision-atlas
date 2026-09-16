@@ -21,7 +21,7 @@ from urllib.parse import quote
 from .extractor import extract
 from .leaf_generator import annotate_artifacts
 from .mermaid_render import render_leaf_mermaids
-from .spec_writer import build_structure, leaf_dir_id
+from .spec_writer import build_structure, leaf_dir_id, owns_content
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -86,7 +86,7 @@ def _notebook_html(node: dict, leaves_prefix: "Optional[str]") -> str:
     `generate_all` derive the same directory name from the same id, so the link
     cannot drift from what was written.
     """
-    if not leaves_prefix or "checklist" not in node:
+    if not leaves_prefix or not owns_content(node):
         return ""
     href = _link(f"{leaves_prefix.rstrip('/')}/{leaf_dir_id(node)}/notebook.html")
     return f'<a href="{_esc(href)}">notebook</a>'

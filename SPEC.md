@@ -181,6 +181,12 @@ leaf:
 
 ## 8. Leaf generation contract
 
+- **What a leaf is**: a node that *owns content* — a checklist item, a recall
+  block, a self-test or a diagram. A heading owns its intro range even when it has
+  children (that is what stops intro prose being dropped), so having a checklist is
+  NOT the same as being a leaf: a module root whose range is only its own heading is
+  a **parent**, and gets no notebook, no link and no place in the leaf count. One
+  node owning content in exactly one place is the point.
 - **Budgets**: recall block 3–5 bullets ≤60 words; notebook pages by checklist
   size (§9); a leaf holds a **list of diagrams** — never two drawings of the
   same structure, but an array when the leaf legitimately has several.

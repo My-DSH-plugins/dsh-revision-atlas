@@ -41,7 +41,7 @@ from urllib.parse import unquote
 
 from .extractor import extract
 from .notebook_generator import iter_leaves
-from .spec_writer import leaf_dir_id, leaf_range
+from .spec_writer import leaf_dir_id, leaf_range, owns_content
 
 # The only lexical test on the deterministic axis is a FLOOR, never a similarity
 # threshold. Grounding is structural (SPEC §6.4b): a claim traces to a REAL SOURCE
@@ -399,7 +399,7 @@ def _merge_critic(critic: dict, rep: Report) -> None:
 
 
 def verify(inv: dict, spec: dict, out_root: str, critic: "Optional[dict]" = None) -> Report:
-    leaves = [n for n in iter_leaves(spec["root"]) if "checklist" in n]
+    leaves = [n for n in iter_leaves(spec["root"]) if owns_content(n)]
     module_dir = Path(out_root) / Path(inv["root"]).name
     rep = Report(module=spec["module"])
     rep.stats["enumerated"] = inv["closure"]["enumerated"]

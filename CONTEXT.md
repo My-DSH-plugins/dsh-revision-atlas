@@ -23,8 +23,11 @@ sidecar reachable from it.
 _Avoid_: source tree, content
 
 **Leaf**:
-The terminal node of a branch — one compacted revision unit.
-_Avoid_: note, card, section
+A node that *owns content* — a checklist item, a recall block, a self-test or a
+diagram — and therefore gets a notebook. A heading owns its intro range even when
+it has children, so a node can carry a checklist and still be a **parent**: a module
+root whose range is only its own heading is not a leaf.
+_Avoid_: note, card, section, terminal node
 
 **Leaf id**:
 A leaf's unique, heading-derived identity: the source-anchor fragment, the

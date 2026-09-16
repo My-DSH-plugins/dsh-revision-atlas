@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 from .extractor import extract
 from .leaf_generator import annotate_artifacts
 from .mermaid_render import render_leaf_mermaids
-from .spec_writer import build_structure, leaf_dir_id
+from .spec_writer import build_structure, leaf_dir_id, owns_content
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -503,7 +503,7 @@ def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
     module_slug = Path(inv["root"]).name
     write_shared_assets(out_root)
     module_dir = Path(out_root) / module_slug
-    leaves = [n for n in iter_leaves(spec["root"]) if "checklist" in n]
+    leaves = [n for n in iter_leaves(spec["root"]) if owns_content(n)]
     written: List[Path] = []
     for leaf in leaves:
         # SPEC §13: `leaves/<leaf-id>/` — the id, not a position. Both the map

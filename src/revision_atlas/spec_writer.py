@@ -159,6 +159,28 @@ def _dedupe_ids(root: dict) -> dict:
     return root
 
 
+def owns_content(node: dict) -> bool:
+    """Whether a node is a LEAF for artifact purposes — it has something to compact.
+
+    A checklist is attached by KIND (`LEAF_KINDS`): a heading owns its intro range
+    even when it has children, which is what keeps intro prose from being silently
+    dropped. So "has a checklist" is NOT the same as "is a leaf", and treating it as
+    one gave a module root with no intro prose a notebook holding a front cover, a
+    back cover and nothing between — an artifact with no content, linked from the map
+    and counted in the report.
+
+    Leaf means the node *owns content*, not that it is of a leaf-ish kind. Call this
+    after annotation (checklist, recall, diagrams), when a node's content is known.
+    """
+    return bool(
+        node.get("checklist")
+        or node.get("recall")
+        or node.get("prompt")
+        or node.get("reveal")
+        or node.get("diagrams")
+    )
+
+
 _LEAF_DIR_MAX = 80
 
 

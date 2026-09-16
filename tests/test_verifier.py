@@ -241,7 +241,11 @@ class TestBuildPipeline(unittest.TestCase):
             (root / "README.md").write_text(READ_ME, encoding="utf-8")
             spec, written, rep = build(str(root), str(root / "mindmaps"))
             self.assertTrue(rep.ok(), rep.render())
-            self.assertEqual(len(written), 2)                       # root + Section one
+            # ONE notebook: the module root owns no content of its own — its
+            # range is just its heading — so it is a parent, not a leaf, and gets
+            # no artifact. (It used to get an empty one: cover, back cover, nothing
+            # between.) `Section one` owns the prose and the collapsible.
+            self.assertEqual(len(written), 1)
             self.assertTrue((root / "mindmaps" / root.name / "plan.md").exists())
             self.assertTrue((root / "mindmaps" / root.name / "spec.json").exists())
             self.assertTrue((root / "mindmaps" / "assets" / "notebook.css").exists())
@@ -275,7 +279,9 @@ class TestBuildPipeline(unittest.TestCase):
                 re.findall(r'href=\\?"([^"\\]+)\\?"', map_html.read_text(encoding="utf-8"))
             )
 
-            for leaf in [n for n in iter_leaves(spec["root"]) if "checklist" in n]:
+            from revision_atlas.spec_writer import owns_content
+
+            for leaf in [n for n in iter_leaves(spec["root"]) if owns_content(n)]:
                 self.assertIn(f"leaves/{leaf['id']}/notebook.html", hrefs)
 
             for href in hrefs:
@@ -284,7 +290,8 @@ class TestBuildPipeline(unittest.TestCase):
 
             # §13 names leaf dirs by id — never by position
             leaf_dirs = sorted(p.name for p in (module_out / "leaves").iterdir())
-            self.assertEqual(leaf_dirs, ["mod", "section-one"])
+            self.assertEqual(leaf_dirs, ["section-one"])
+            self.assertNotIn("mod", leaf_dirs)      # the contentless root gets none
 
     def test_a_leaf_dir_survives_an_inserted_section(self):
         # A position-based dir (`leaf-001`) shifts the moment a section is added
@@ -309,7 +316,7 @@ class TestBuildPipeline(unittest.TestCase):
             map_html = base / "mindmaps" / "demo" / "index.html"
             map_html.write_text(
                 map_html.read_text(encoding="utf-8").replace(
-                    "leaves/mod/notebook.html", "leaves/nope/notebook.html"
+                    "leaves/section-one/notebook.html", "leaves/nope/notebook.html"
                 ),
                 encoding="utf-8",
             )
@@ -349,3 +356,50 @@ class TestBuildPipeline(unittest.TestCase):
                 for p in (root / "mindmaps" / root.name / "leaves").glob("*/notebook.html")
             )
             self.assertIn("hooks", all_html)
+
+
+class TestLeafMeansOwningContent(unittest.TestCase):
+    """A node is a leaf because it has content, not because of its kind.
+
+    The module root and a section both get a checklist by KIND (a heading owns its
+    intro range, so intro prose is never dropped). Treating "has a checklist" as
+    "is a leaf" gave a root with no intro prose a notebook of two covers and
+    nothing between.
+    """
+
+    def test_a_root_that_owns_only_its_heading_gets_no_notebook(self):
+        from revision_atlas.spec_writer import owns_content
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            inv = extract(root)
+            spec = build_structure(inv)["spec"]
+            annotate_artifacts(inv, spec["root"])
+            by_id = {n["id"]: n for n in _all_nodes(spec["root"])}
+
+            self.assertIn("checklist", by_id["mod"])          # still enumerated...
+            self.assertEqual(by_id["mod"]["checklist"], [])   # ...but empty
+            self.assertFalse(owns_content(by_id["mod"]))      # so: not a leaf
+            self.assertTrue(owns_content(by_id["section-one"]))
+
+    def test_a_root_with_intro_prose_is_a_leaf(self):
+        from revision_atlas.spec_writer import owns_content
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            inv = extract(root)
+            # a semantic pass compacts the root's own range into claims
+            spec = build_structure(inv, semantic={"mod": ["the module's own intro"]})["spec"]
+            annotate_artifacts(inv, spec["root"])
+            by_id = {n["id"]: n for n in _all_nodes(spec["root"])}
+            self.assertTrue(owns_content(by_id["mod"]))
+
+
+def _all_nodes(node):
+    yield node
+    for b in (node.get("branches") or {}).values():
+        yield from _all_nodes(b)
+    for c in node.get("children", []):
+        yield from _all_nodes(c)
