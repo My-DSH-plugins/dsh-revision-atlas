@@ -115,11 +115,13 @@ class TestMapIsLinkableInto(unittest.TestCase):
             (root / "README.md").write_text(
                 "# M\n\n## A\n\nprose\n\n### B\n\nmore prose\n", encoding="utf-8"
             )
-            # B needs content of its own to be a leaf at all (0016)
-            spec, written, rep = build(
-                str(root), str(Path(td) / "mindmaps"),
-                recall={"b": {"recall": ["a hook"], "prompt": "why?", "reveal": "- because"}},
-            )
+            # B needs content of its own to be a leaf at all (0016) — and the
+            # approval must be taken with the SAME passes as the build, or it
+            # fingerprints a different plan and correctly lapses
+            passes = {"recall": {"b": {"recall": ["a hook"], "prompt": "why?",
+                                       "reveal": "- because"}}}
+            build(str(root), str(Path(td) / "mindmaps"), approve=["all"], **passes)
+            spec, written, rep = build(str(root), str(Path(td) / "mindmaps"), **passes)
             assert rep.ok(), rep.render()
             module_out = Path(td) / "mindmaps" / "demo"
             # read everything while the temp tree still exists — the files are gone

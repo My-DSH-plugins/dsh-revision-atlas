@@ -41,7 +41,8 @@ from urllib.parse import unquote
 
 from .extractor import extract
 from .notebook_generator import iter_leaves
-from .spec_writer import leaf_dir_id, leaf_range, owns_content
+from .spec_writer import (approval_state, checklists_sha, leaf_dir_id,
+                          leaf_range, leaf_source_sha, owns_content, structure_sha)
 
 # The only lexical test on the deterministic axis is a FLOOR, never a similarity
 # threshold. Grounding is structural (SPEC §6.4b): a claim traces to a REAL SOURCE
@@ -278,14 +279,11 @@ def _check_coverage(module_dir: Path, leaves: List[dict], rep: Report) -> None:
 
 
 def _source_text(inv: dict, leaf: dict) -> str:
-    start, end = leaf_range(inv, leaf)
-    path = Path(inv["root"]) / leaf["file"]
-    if not path.exists():
-        return ""
-    lines = path.read_text(encoding="utf-8").splitlines()
-    lo = 0 if leaf.get("line") is None else start - 1
-    hi = len(lines) if end == float("inf") else int(end) - 1
-    return " ".join(lines[lo:hi])
+    """The leaf's own range as prose — one definition, in spec_writer, shared with
+    the hash so the two can never disagree about what a leaf is made of."""
+    from .spec_writer import leaf_source_text
+
+    return leaf_source_text(inv, leaf)
 
 
 def _check_grounding(inv: dict, leaves: List[dict], rep: Report) -> None:
@@ -450,6 +448,84 @@ def _check_budgets(leaves: List[dict], rep: Report) -> None:
             ))
 
 
+def _persisted_spec(module_dir: Path) -> dict:
+    path = module_dir / "spec.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) or {}
+    except (ValueError, OSError):
+        return {}
+
+
+def _check_approval(module_dir: Path, rep: Report) -> None:
+    """The artifacts must be backed by a recorded human approval (SPEC §15).
+
+    The generation gate stops an unapproved plan being built. This stops an
+    approved-LOOKING tree being one anyway — a `build` from before the gate existed,
+    a tree copied from elsewhere, or anything that reached `generate_all` without
+    passing the door. An approval fingerprints the plan it reviewed, so a plan that
+    changed after approval is reported as LAPSED rather than silently honoured.
+    """
+    spec = _persisted_spec(module_dir)
+    root = spec.get("root")
+    if not root:
+        # A tree that cannot state its plan cannot state its provenance either. That
+        # is not "unapproved" — it is unverifiable, and this is a failure axis.
+        if (module_dir / "spec.json").exists():
+            rep.findings.append(Finding(
+                "failure", "approval", "gate: structure",
+                "spec.json carries no plan, so no approval can be established for "
+                "these artifacts",
+            ))
+        return
+    state = approval_state(root, spec.get("approval"))
+    for gate in ("structure", "checklists"):
+        g = state[gate]
+        if g["approved"]:
+            continue
+        rep.findings.append(Finding(
+            "failure", "approval", f"gate: {gate}",
+            f"the plan was never approved ({g['sha']})" if not g["stale"] else
+            f"LAPSED — approved as {g['approved_sha']} but the plan is now {g['sha']}; "
+            f"re-review and re-approve",
+        ))
+
+
+def _check_freshness(inv: dict, leaves: List[dict], module_dir: Path, rep: Report) -> None:
+    """The artifact must still describe the source it was built from.
+
+    Each leaf carries the fingerprint of its own source range in `spec.json`, so a
+    changed file is reported against the leaves it actually touched — which is what
+    `refresh-stale-leaves` needs, and what stops an atlas quietly describing a
+    README that has since moved on.
+    """
+    spec = _persisted_spec(module_dir)
+    recorded = {
+        n.get("id"): n.get("source_sha")
+        for n in iter_leaves(spec.get("root") or {})
+        if n.get("source_sha")
+    } if spec else {}
+    if not recorded:
+        return
+    for leaf in leaves:
+        was = recorded.get(leaf.get("id"))
+        if not was:
+            continue                      # new leaf: the artifact check reports it
+        source = Path(inv["root"]) / (leaf.get("file") or "")
+        if not leaf.get("file") or not source.exists():
+            # "I cannot read the source" is not "the source changed" — SPEC §14.
+            # (Moving a tree away from its module is reported by the `links` axis.)
+            continue
+        now = leaf_source_sha(inv, leaf)
+        if now != was:
+            rep.findings.append(Finding(
+                "failure", "freshness", leaf["title"],
+                f"the source changed since this leaf was built ({was} -> {now}) — "
+                f"rebuild it",
+            ))
+
+
 def _merge_critic(critic: dict, rep: Report) -> None:
     """Fold in the LLM critic's drift report (§6.4b). Annotations only."""
     for leaf, entries in (critic or {}).items():
@@ -474,6 +550,8 @@ def verify(inv: dict, spec: dict, out_root: str, critic: "Optional[dict]" = None
     _check_offline(module_dir, leaves, rep)
     _check_links(module_dir, Path(out_root), leaves, rep)
     _check_budgets(leaves, rep)
+    _check_approval(module_dir, rep)
+    _check_freshness(inv, leaves, module_dir, rep)
     _check_labels(module_dir, leaves, rep)
     _merge_critic(critic, rep)
     return rep

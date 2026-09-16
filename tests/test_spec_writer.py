@@ -75,10 +75,11 @@ class TestStructurePlan(unittest.TestCase):
         self.assertIn("kind: framework-matrix", out["plan_md"])
 
         # The plan is a review artifact: gates, approval status, source anchors.
-        self.assertIn("`proposed`", out["plan_md"])
-        self.assertIn("flip to `approved`", out["plan_md"])
-        self.assertIn("Gate 1 — structure", out["plan_md"])
-        self.assertIn("Gate 2 — leaf checklists", out["plan_md"])
+        # the plan states the gate it is waiting on, and that generation is blocked
+        self.assertIn("AWAITING HUMAN APPROVAL", out["plan_md"])
+        self.assertIn("1 — structure", out["plan_md"])
+        self.assertIn("2 — checklists", out["plan_md"])
+        self.assertIn("not approved", out["plan_md"])
         self.assertIn("[src README.md:", out["plan_md"])
 
     def test_m5_has_no_in_scope_residue(self):

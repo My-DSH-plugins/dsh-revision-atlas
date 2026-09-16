@@ -307,6 +307,10 @@ mindmaps/
         └── diagram.mmd   # the .mmd source (diffable)
 ```
 
+`spec.json` carries the approval record and, per leaf, the fingerprint of the source
+range that leaf was built from — so a later run can say *which* leaves went stale
+rather than suspecting the module, and a tree can state its own provenance.
+
 `<leaf-id>` is the leaf's unique heading-derived id (the same string used as its
 source-anchor fragment), **never a position**. A positional name (`leaf-003`)
 shifts the moment a section is inserted above it, and every link, bookmark and
@@ -346,6 +350,36 @@ to the module markdown can only resolve when the tree ships beside its source �
 with an explicit remedy. Resolution is asserted, not the fragment: a wrong
 `#anchor` still opens the right file, and GitHub's own slug rule is not ours to
 replicate.
+
+### 14.1 The human gates are enforced, not implied
+
+Gate 1 (structure) and Gate 2 (checklists) are **blocking**. `build` writes the plan
+and then refuses to generate anything until both are approved, exiting **3** —
+distinct from 1 (verification failed) so a caller can tell a human decision from a
+bug.
+
+An approval is a **fingerprint of the content it reviewed**, not a flag on a file:
+
+- Gate 1's fingerprint covers the shape — kinds, titles, ids, anchors, edges.
+- Gate 2's covers every leaf's checklist **and the source range those checklists
+  claim to capture** — because Gate 2's question is whether the checklist is
+  grounded in the source, so prose that changed without changing an item still
+  invalidates the approval. (Measured: appending a paragraph moved neither the
+  structure nor the items, and regeneration proceeded silently until the source was
+  included.)
+
+Consequences, all of them deliberate: an approval **survives** rebuilding the same
+plan; it **lapses** the moment that plan or its source changes, and the plan says so
+(`LAPSED — approved as … but the plan is now …`); and it cannot be laundered forward,
+because a rebuild carries the recorded fingerprint rather than stamping the current
+one onto it. The refusal names the leaves whose source moved, so a human knows what
+to re-read.
+
+Two layers, because one is defeatable: the gate stops an unapproved plan being
+generated, and the verifier's `approval` axis fails any artifact tree that cannot
+show a current approval — an old tree, a copied one, or anything that reached the
+generator without passing the door. The `freshness` axis fails a tree whose source
+has moved on since it was built.
 
 ## 15. Milestones (tracer bullets) and open questions
 

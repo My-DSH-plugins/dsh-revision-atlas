@@ -20,6 +20,7 @@ Tracer-bullet tickets, worked blockers-first (extractor → everything else).
 | [0014](0014-pan-zoom-on-the-diagram-page.md) | Pan/zoom on the diagram page | 0006 | — |
 | [0015](0015-coverage-false-miss-on-short-labels.md) | Coverage false-misses a short-labelled collapsible | — | — |
 | [0016](0016-a-leaf-means-owning-content.md) | A leaf means owning content | — | — |
+| [0017](0017-human-approval-is-enforced.md) | Human approval is enforced | — | 0012 |
 
 Open decisions that gate a specific ticket are noted in that ticket's file. The
 two that gate later work: **flip implementation** (0006) and the **diagram-kind

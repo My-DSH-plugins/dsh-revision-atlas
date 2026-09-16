@@ -115,6 +115,12 @@ read by the LLM critic, which flags drift. Semantic; the critic's job, never the
 deterministic axis's.
 _Avoid_: accuracy, correctness, grounding
 
+**Approval**:
+A human's recorded decision on a gate, fingerprinted to the plan it reviewed — so it
+survives rebuilding an unchanged plan and lapses when that plan or its source changes.
+Not a flag on a file: the reviewed content *is* the approval's subject.
+_Avoid_: sign-off, status flag, approved marker
+
 **Links**:
 The verification axis that asks whether every `href` in the map and in every
 notebook *resolves* from the file that carries it. A link inside the artifact tree

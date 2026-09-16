@@ -159,6 +159,129 @@ def _dedupe_ids(root: dict) -> dict:
     return root
 
 
+def leaf_source_lines(inv: dict, node: dict) -> List[str]:
+    """The exact source lines a node owns in its own file.
+
+    A heading owns from its own line to the next heading of ANY rank; a sidecar
+    (`line` is None) owns its whole file. The one place this range is expressed, so
+    the hash, the grounding check and the coverage audit cannot disagree about what
+    a leaf is made of.
+    """
+    if not node.get("file"):
+        return []
+    start, end = leaf_range(inv, node)
+    path = Path(inv["root"]) / node["file"]
+    if not path.exists():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lo = 0 if node.get("line") is None else start - 1
+    hi = len(lines) if end == float("inf") else int(end) - 1
+    return lines[lo:hi]
+
+
+def leaf_source_text(inv: dict, node: dict) -> str:
+    """The range as prose, for matching claim words against the source."""
+    return " ".join(leaf_source_lines(inv, node))
+
+
+def leaf_source_sha(inv: dict, node: dict) -> str:
+    """A fingerprint of the source a leaf is built from.
+
+    Persisted per leaf in `spec.json` so a later run can tell WHICH leaves are
+    stale rather than suspecting the whole module — `refresh-stale-leaves` needs
+    that, and so does the verifier's freshness check.
+
+    Lines are joined with their own boundaries intact: joining on spaces alone
+    would make a change that only moves text between lines invisible.
+    """
+    body = "\n".join(leaf_source_lines(inv, node))
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
+def structure_sha(root: dict) -> str:
+    """Fingerprint of what **Gate 1** reviews: the shape of the plan.
+
+    Kinds, titles, source anchors, ids and the edges between nodes — everything in
+    `plan.md` except the checklists. Deliberately blind to claims, so approving the
+    structure is not invalidated by the checklist pass that follows it.
+    """
+    parts: List[str] = []
+
+    def walk(node: dict, depth: int) -> None:
+        parts.append("|".join([
+            str(depth), node.get("kind", ""), node.get("title", ""),
+            node.get("id", ""), node.get("file") or "", str(node.get("line")),
+            str((node.get("evidence") or {}).get("line", "")),
+            ",".join(sorted((node.get("branches") or {}).keys())),
+        ]))
+        for key, b in sorted((node.get("branches") or {}).items()):
+            walk(b, depth + 1)
+        for c in node.get("children", []):
+            walk(c, depth + 1)
+
+    walk(root, 0)
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def checklists_sha(root: dict) -> str:
+    """Fingerprint of what **Gate 2** reviews: every leaf's checklist, and the source
+    it claims to capture.
+
+    The source is part of the subject, not context: Gate 2 asks whether the checklist
+    is *grounded in the source*, so prose that changed without changing any checklist
+    item still invalidates the approval — otherwise an edit nobody reviewed would
+    ride in on a checklist that no longer describes it. (Measured: appending a
+    paragraph moved neither the structure nor the items, and the build regenerated
+    silently until this was included.)
+    """
+    parts: List[str] = []
+
+    def walk(node: dict) -> None:
+        if node.get("checklist") is not None:
+            items = ";".join(
+                "{}:{}:{}".format(i.get("kind", ""), i.get("line", ""),
+                                  i.get("summary") or i.get("text") or "")
+                for i in node["checklist"]
+            )
+            parts.append(f"{node.get('id', '')}@{node.get('source_sha', '')}={items}")
+        for b in (node.get("branches") or {}).values():
+            walk(b)
+        for c in node.get("children", []):
+            walk(c)
+
+    walk(root)
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def empty_approval() -> dict:
+    """No gate approved yet."""
+    return {}
+
+
+def approval_state(root: dict, approval: "Optional[dict]") -> dict:
+    """Each gate's verdict against the plan as it stands right now.
+
+    An approval is a fingerprint of REVIEWED CONTENT, not a flag on a file: it stays
+    valid while that content is unchanged and lapses the moment it changes. That is
+    what makes it an approval of *this* plan rather than of the module forever.
+    """
+    approval = approval or {}
+    out = {}
+    for gate, sha in (("structure", structure_sha(root)),
+                      ("checklists", checklists_sha(root))):
+        got = approval.get(gate) or {}
+        out[gate] = {
+            "sha": sha,                       # the plan as it stands now
+            "approved_sha": got.get("sha"),   # what was approved, if anything was
+            "approved": bool(got) and got.get("sha") == sha,
+            "stale": bool(got) and got.get("sha") != sha,
+            "at": got.get("at"),
+            "by": got.get("by"),
+        }
+    out["ready"] = all(g["approved"] for g in out.values() if isinstance(g, dict))
+    return out
+
+
 def owns_content(node: dict) -> bool:
     """Whether a node is a LEAF for artifact purposes — it has something to compact.
 
@@ -244,6 +367,9 @@ def _annotate_leaves(
         mm = _lookup(mermaid, node) or []
         if mm:
             node["mermaid"] = mm
+        if owns_content(node):
+            # persisted in spec.json: WHICH leaf went stale, not just "the module did"
+            node["source_sha"] = leaf_source_sha(inv, node)
     return node
 
 
@@ -258,7 +384,25 @@ def _anchor(node: dict) -> str:
     return ""
 
 
-def _render_md(root: dict, coverage: dict) -> str:
+def render_plan(root: dict, coverage: dict, state: "Optional[dict]" = None) -> str:
+    """The human review surface. `state` is `approval_state(root, approval)`."""
+    return _render_md(root, coverage, state)
+
+
+def _gate_status_line(gate: str, state: "Optional[dict]") -> str:
+    if not state:
+        return "not approved"
+    g = state.get(gate) or {}
+    if g.get("approved"):
+        return f"**APPROVED** {g.get('at')} by {g.get('by')} — `{g.get('sha')}`"
+    if g.get("stale"):
+        return (f"**LAPSED** — approved as `{g.get('approved_sha')}` "
+                f"({g.get('at')} by {g.get('by')}), but the plan is now `{g.get('sha')}`. "
+                f"The plan changed since it was approved.")
+    return "not approved"
+
+
+def _render_md(root: dict, coverage: dict, state: "Optional[dict]" = None) -> str:
     lines: List[str] = []
 
     def walk(node: dict, depth: int) -> None:
@@ -315,12 +459,22 @@ def _render_md(root: dict, coverage: dict) -> str:
     head = [
         f"# Plan — {root['title']}",
         "",
-        "> **status:** `proposed` — flip to `approved` after both gates pass.",
+        "> **status:** "
+        + ("`approved` — both gates are current."
+           if (state or {}).get("ready")
+           else "`AWAITING HUMAN APPROVAL` — generation is blocked until both gates pass."),
         "",
         "## How to review",
         "",
-        "- **Gate 1 — structure:** every section and linked file appears below with the right `kind`; resolve any `⚠ DECIDE` item.",
-        "- **Gate 2 — leaf checklists:** every claim is grounded in the source (follow each leaf's `[src …]` anchor); nothing invented, nothing load-bearing dropped.",
+        "",
+        "| gate | what it reviews | state |",
+        "|---|---|---|",
+        f"| 1 — structure | every section and linked file appears below with the right `kind`; resolve any `⚠ DECIDE` item | {_gate_status_line('structure', state)} |",
+        f"| 2 — checklists | every claim is grounded in the source (follow each leaf's `[src …]` anchor); nothing invented, nothing load-bearing dropped | {_gate_status_line('checklists', state)} |",
+        "",
+        "An approval fingerprints the plan it reviewed, so it survives rebuilds of the",
+        "same plan and **lapses the moment the plan changes** — the plan can never",
+        "change silently (SPEC §15).",
         "",
         "## Coverage: "
         f"{cov['classified']} classified · {cov['ignored']} ignored · "

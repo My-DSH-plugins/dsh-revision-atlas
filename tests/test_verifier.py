@@ -30,22 +30,20 @@ The body of the collapsible.
 
 
 def _build(root: Path, readme: str = READ_ME, semantic=None, recall=None):
-    """A complete §13 tree: notebooks AND the map they link back to."""
-    from revision_atlas.renderer import render_map, source_base_for
+    """A complete §13 tree, built the way a human would: approve, then generate."""
+    from revision_atlas.build import build
 
     (root / "README.md").write_text(readme, encoding="utf-8")
-    inv = extract(root)
-    spec = build_structure(inv, semantic=semantic, recall=recall)["spec"]
-    annotate_artifacts(inv, spec["root"])
-    out = root / "out"
-    generate_all(inv, spec, str(out))
-    module_out = out / root.name
-    (module_out / "index.html").write_text(
-        render_map(spec, leaves_prefix="leaves",
-                   source_base=source_base_for(str(root), module_out)),
-        encoding="utf-8",
+    spec, written, rep = build(
+        str(root), str(root / "out"),
+        semantic=semantic, recall=recall, approve=["all"],
     )
-    return inv, spec, out
+    assert rep is None, rep.render()          # approving generates nothing
+    spec, written, rep = build(
+        str(root), str(root / "out"), semantic=semantic, recall=recall,
+    )
+    assert rep is not None and rep.ok(), rep.render() if rep else "no report"
+    return extract(root), spec, root / "out"
 
 
 def _artifacts(out: Path, root: Path) -> Path:
@@ -98,8 +96,12 @@ class TestVerifierFails(unittest.TestCase):
     def test_mermaid_seed_without_a_rendered_diagram_fails(self):
         readme = READ_ME + "\n```mermaid\nflowchart TD\n  A --> B\n```\n"
         with tempfile.TemporaryDirectory() as td:
-            inv, spec, out = _build(Path(td), readme=readme)
-            # no render_leaf_mermaids() call: the seed has no SVG in the artifact
+            root = Path(td)
+            inv, spec, out = _build(root, readme=readme)
+            # a real build renders the diagram, so remove it to exercise the miss
+            for nb in (out / root.name / "leaves").glob("*/notebook.html"):
+                nb.write_text(re.sub(r"(?s)<svg\b.*?</svg>", "", nb.read_text(encoding="utf-8")),
+                              encoding="utf-8")
             rep = verify(inv, spec, str(out))
             self.assertFalse(rep.ok())
             self.assertTrue(
@@ -239,6 +241,7 @@ class TestBuildPipeline(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            build(str(root), str(root / "mindmaps"), approve=["all"])
             spec, written, rep = build(str(root), str(root / "mindmaps"))
             self.assertTrue(rep.ok(), rep.render())
             # ONE notebook: the module root owns no content of its own — its
@@ -263,6 +266,7 @@ class TestBuildPipeline(unittest.TestCase):
         root = base / "modules" / "demo"
         root.mkdir(parents=True)
         (root / "README.md").write_text(READ_ME, encoding="utf-8")
+        build(str(root), str(base / "mindmaps"), approve=["all"])   # the human gate
         spec, written, rep = build(str(root), str(base / "mindmaps"))
         return base, root, spec, rep
 
@@ -307,8 +311,11 @@ class TestBuildPipeline(unittest.TestCase):
             )
             from revision_atlas.build import build
 
+            # a changed plan lapses the approval by design, so re-approve first
+            build(str(root), str(base / "mindmaps"), approve=["all"])
             build(str(root), str(base / "mindmaps"))
             self.assertTrue(before.exists(), "inserting a section renamed an existing leaf")
+
 
     def test_a_broken_map_link_is_a_failure(self):
         with tempfile.TemporaryDirectory() as td:
@@ -342,11 +349,16 @@ class TestBuildPipeline(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            passes = {
+                "semantic": {"Section one": ["a bullet worth keeping"]},
+                "recall": {"Section one": {"recall": ["hooks"], "prompt": "q?", "reveal": "a."}},
+            }
+            # the approval fingerprints the pass-fed plan, so approve with the SAME
+            # passes — otherwise the build correctly calls the approval LAPSED
+            build(str(root), str(root / "mindmaps"), approve=["all"], **passes)
             spec, written, rep = build(
-                str(root), str(root / "mindmaps"),
-                semantic={"Section one": ["a bullet worth keeping"]},
-                recall={"Section one": {"recall": ["hooks"], "prompt": "q?", "reveal": "a."}},
-                critic={"Section one": [{"detail": "planted drift"}]},
+                str(root), str(root / "mindmaps"), critic={"Section one": [{"detail": "planted drift"}]},
+                **passes,
             )
             self.assertTrue(rep.ok())                                # critic annotates only
             self.assertTrue(any(f.check == "critic" for f in rep.needs_review))
@@ -442,6 +454,7 @@ class TestEmptyModule(unittest.TestCase):
                 "# A module\n\n## A section\n\nProse, and nothing enumerable.\n",
                 encoding="utf-8",
             )
+            build(str(root), str(root / "mindmaps"), approve=["all"])
             spec, written, rep = build(str(root), str(root / "mindmaps"))
             self.assertEqual(written, [])
             module_out = root / "mindmaps" / root.name
@@ -523,5 +536,99 @@ class TestShortLabelCoverage(unittest.TestCase):
             self.assertFalse(rep.ok())
             self.assertTrue(
                 any(f.check == "coverage" and "C1" in f.detail for f in rep.failures),
+                rep.render(),
+            )
+
+
+class TestHumanApproval(unittest.TestCase):
+    """Generation is gated on a recorded approval, and the approval is of a PLAN.
+
+    An approval fingerprints the content it reviewed: it survives rebuilding the same
+    plan and lapses the moment that plan — or the source the checklists claim to
+    capture — changes. So a human decision cannot be laundered into a later plan.
+    """
+
+    READ_ME = "# Mod\n\n## Section one\n\nIntro prose.\n\n<details><summary>C1</summary>\n\nBody.\n\n</details>\n"
+
+    def _module(self, td):
+        root = Path(td)
+        (root / "README.md").write_text(self.READ_ME, encoding="utf-8")
+        return root
+
+    def test_building_an_unapproved_plan_generates_nothing(self):
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._module(td)
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertEqual(written, [])
+            self.assertIsNone(rep)                       # nothing ran, nothing passed
+            module_out = root / "mindmaps" / root.name
+            self.assertTrue((module_out / "plan.md").exists())    # the review surface
+            self.assertTrue((module_out / "spec.json").exists())
+            self.assertEqual(list((module_out).glob("leaves")), [])
+            self.assertFalse((module_out / "index.html").exists())
+
+    def test_approving_then_building_generates_and_survives_a_rebuild(self):
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._module(td)
+            build(str(root), str(root / "mindmaps"), approve=["all"], approved_by="Tester")
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertTrue(written and rep.ok(), rep.render() if rep else "no report")
+            # a second rebuild of the SAME plan must not need re-approval
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertTrue(written and rep.ok())
+
+    def test_a_source_edit_without_a_re_approval_lapses_the_gate(self):
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._module(td)
+            build(str(root), str(root / "mindmaps"), approve=["all"])
+            build(str(root), str(root / "mindmaps"))
+            # prose only: no new heading, no new checklist item — and it must STILL
+            # invalidate Gate 2, whose subject is the source the checklists capture
+            (root / "README.md").write_text(self.READ_ME + "\nExtra prose.\n", encoding="utf-8")
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertEqual(written, [])
+            self.assertIsNone(rep)
+
+    def test_the_approval_records_who_and_what(self):
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._module(td)
+            build(str(root), str(root / "mindmaps"), approve=["all"], approved_by="A Tester")
+            spec = json.loads((root / "mindmaps" / root.name / "spec.json").read_text())
+            for gate in ("structure", "checklists"):
+                self.assertEqual(spec["approval"][gate]["by"], "A Tester")
+                self.assertTrue(spec["approval"][gate]["at"])
+                self.assertTrue(spec["approval"][gate]["sha"])
+
+    def test_the_verifier_fails_a_tree_with_no_recorded_approval(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root)
+            spec_path = out / root.name / "spec.json"
+            spec_path.write_text("{}", encoding="utf-8")          # strip the record
+            rep = verify(inv, spec, str(out))
+            self.assertFalse(rep.ok())
+            self.assertTrue(any(f.check == "approval" for f in rep.failures), rep.render())
+
+    def test_the_verifier_fails_a_leaf_whose_source_moved_on(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inv, spec, out = _build(root)
+            # the README moves on after the artifacts were built
+            (root / "README.md").write_text(
+                READ_ME + "\n\nA paragraph added after the build.\n", encoding="utf-8"
+            )
+            rep = verify(extract(root), spec, str(out))
+            self.assertFalse(rep.ok())
+            self.assertTrue(
+                any(f.check == "freshness" and "source changed" in f.detail
+                    for f in rep.failures),
                 rep.render(),
             )
