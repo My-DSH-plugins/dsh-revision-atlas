@@ -22,12 +22,20 @@
   --cover-shift-front: -260px; /* half a page left  — front cover sits on the RIGHT half */
   --cover-shift-back: 260px;   /* half a page right — back cover sits on the LEFT half */
 
+  /* Standard ruled-page geometry (mm → px at ~96dpi):
+       25mm margin rule from the left edge   →  94px
+       30mm header above the first rule      → 113px   (subject / title goes HERE)
+       10mm bottom margin                    →  38px
+       7.1mm college ruling                  →  27px   (we run 32px, the 7–8mm band)
+     The header band is blank paper above the rules — that is where a heading
+     lives, so it never sits on the first line of the ruling. */
+  --margin-left: 94px;
+  --header-h: 113px;
+  --margin-right: 36px;
+  --margin-bottom: 38px;
+
   --line: 32px;                /* ruled rhythm = body line-height */
   --rule-at: 20.5px;           /* measured Kalam baseline in a 32px line (17px) */
-  --margin-left: 82px;         /* the red margin rule sits here (≈15.8% of 520) */
-  --margin-top: 82px;          /* first blue rule — equals the left margin → a square */
-  --margin-right: 24px;
-  --margin-bottom: 40px;
 
   --rule: #b9cdf0;             /* blue ruled line */
   --margin-rule: #d9534f;      /* red margin line */
@@ -54,12 +62,12 @@ body {
 .stage.at-back { transform: translateX(var(--cover-shift-back)); }
 .book { overflow: hidden; }
 
-/* The page-turn zone: exactly the square cut by the red margin rule and the
-   topmost blue rule — the only region that turns the page. No chrome of its own;
-   that square is already drawn by the page's own rules. */
+/* The page-turn zone: the cell cut by the red margin rule and the topmost blue
+   rule — i.e. the header band, left of the ruled area. The only region that turns
+   the page; the square is already drawn by the page's own rules. */
 .turn {
   position: absolute; top: 0; z-index: 30;
-  width: var(--margin-left); height: var(--margin-top);
+  width: var(--margin-left); height: var(--header-h);
   border: 0; background: transparent; padding: 0;
   cursor: pointer;
 }
@@ -88,7 +96,7 @@ body {
   );
   background-origin: content-box;
   background-clip: content-box;
-  padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
+  padding: var(--header-h) var(--margin-right) var(--margin-bottom) var(--margin-left);
   font-size: 17px;
   line-height: var(--line);
   color: var(--ink);
@@ -107,10 +115,21 @@ body {
   pointer-events: none;
 }
 
-/* headings share the body's baseline grid (nudged by measured metric) */
-.page h1, .page h2 { line-height: var(--line); color: var(--ink); }
-.page h1 { font-size: 24px; position: relative; top: -2px; }
-.page h2 { font-size: 19px; position: relative; top: -0.5px; color: var(--accent); }
+/* A ruled page's heading lives IN the header band — the blank 30mm above the
+   first rule, which the standard reserves for a title — so it never sits on the
+   ruling and never hugs the page top. The body starts on the first rule below. */
+.page h2 {
+  font-size: 19px;
+  color: var(--accent);
+  line-height: 1.15;
+  margin-top: calc(-1 * var(--header-h));
+  height: var(--header-h);
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 10px;
+}
+/* the cover's own title is laid out by the cover, not the header band */
+.page h1 { font-size: 24px; line-height: var(--line); color: var(--ink); }
 
 .page ul { list-style: none; padding-left: 0; }
 .page ul li { margin: 0; }
