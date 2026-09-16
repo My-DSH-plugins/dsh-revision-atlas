@@ -98,7 +98,14 @@ def _leaf_artifact_children(node: dict) -> List[dict]:
             )
         kids.append({"content": inner, "children": []})
     if node.get("source"):
-        src_html = "<br>".join(_esc(s) for s in node["source"])
+        rows = []
+        for it in node["source"]:
+            if isinstance(it, dict):
+                tag = {"details": "[details] ", "mermaid": "[diagram] "}.get(it.get("kind"), "")
+                rows.append(_esc(tag + it.get("text", "")))
+            else:
+                rows.append(_esc(it))
+        src_html = "<br>".join(rows)
         kids.append({
             "content": (
                 f'<details style="font-size:11px;color:#9aa3b2">'

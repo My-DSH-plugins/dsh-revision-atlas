@@ -16,6 +16,7 @@ skeleton (rendered at build time per adr/0002).
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import List
 
@@ -46,18 +47,39 @@ def _assign_diagrams(inv: dict, node: dict) -> list:
     return diagrams
 
 
-def _source_bullets(inv: dict, node: dict) -> List[str]:
+def _plain(text: str) -> str:
+    """Strip inline HTML so an audit line reads as text, not markup."""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
+
+
+def _source_items(inv: dict, node: dict) -> List[dict]:
+    """Every source item the leaf owns, in source order.
+
+    This is the leaf's **audit surface** — the leaf-vs-source list. It carries all
+    three kinds of item the leaf can own, not just its bullet lines, because the
+    verifier (0007) checks checklist coverage against this surface: a collapsible
+    seed is only checkable if the collapsible is actually enumerated here.
+    """
     start, end = leaf_range(inv, node)
-    path = Path(inv["root"]) / node["file"]
-    if not path.exists():
-        return []
-    bullets: List[str] = []
-    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if start <= i < end:
-            stripped = line.strip()
-            if stripped.startswith(("- ", "* ", "+ ")):
-                bullets.append(stripped)
-    return bullets
+    file = node["file"]
+    items: List[dict] = []
+
+    path = Path(inv["root"]) / file
+    if path.exists():
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if start <= i < end:
+                stripped = line.strip()
+                if stripped.startswith(("- ", "* ", "+ ")):
+                    items.append({"kind": "bullet", "line": i, "text": stripped[2:].strip()})
+    for d in inv["details_blocks"].get(file, []):
+        if start <= d["line"] < end:
+            items.append({"kind": "details", "line": d["line"], "text": _plain(d["summary"])})
+    for m in inv["mermaid_blocks"].get(file, []):
+        if start <= m < end:
+            items.append({"kind": "mermaid", "line": m, "text": "mermaid diagram"})
+
+    items.sort(key=lambda it: it["line"])
+    return items
 
 
 def annotate_artifacts(inv: dict, node: dict) -> dict:
@@ -68,5 +90,5 @@ def annotate_artifacts(inv: dict, node: dict) -> dict:
         annotate_artifacts(inv, c)
     if "checklist" in node:
         node["diagrams"] = _assign_diagrams(inv, node)
-        node["source"] = _source_bullets(inv, node)
+        node["source"] = _source_items(inv, node)
     return node

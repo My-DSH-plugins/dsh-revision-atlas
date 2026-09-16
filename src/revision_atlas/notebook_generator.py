@@ -58,19 +58,20 @@ _SOURCE_CHARS_PER_LINE = 42   # Kalam at the ruled size, across the ruled width
 _SOURCE_LINES_PER_PAGE = 15   # ruling lines left for body text after the heading
 
 
-def _chunk_source(items: List[str]) -> List[List[str]]:
-    """Split the source bullets over as many pages as they need.
+def _chunk_source(items: List[dict]) -> List[List[dict]]:
+    """Split the leaf's source items over as many pages as they need.
 
     The lines-per-page count is a constant of the page's own ratios (ruling,
     margins and type all scale together), so a character budget is enough and it
     holds at any window size. Without this the source ran past the ruling and
     `overflow: hidden` silently dropped whatever did not fit.
     """
-    pages: List[List[str]] = []
-    cur: List[str] = []
+    pages: List[List[dict]] = []
+    cur: List[dict] = []
     used = 0
     for it in items:
-        lines = max(1, math.ceil(len(it) / _SOURCE_CHARS_PER_LINE)) + 1  # + skipped rule
+        text = it.get("text", "")
+        lines = max(1, math.ceil(len(text) / _SOURCE_CHARS_PER_LINE)) + 1  # + skipped rule
         if cur and used + lines > _SOURCE_LINES_PER_PAGE:
             pages.append(cur)
             cur, used = [], 0
@@ -132,8 +133,21 @@ def _selftest_html(node: dict) -> str:
     return "<h2>Self-test</h2>" + inner
 
 
-def _source_html(items: List[str], title: str = "Source audit") -> str:
-    rows = "".join(f'<div>{_md_inline(_BULLET.sub("", b))}</div>' for b in items)
+def _source_row(item: dict) -> str:
+    """One audit line. The surface enumerates every source item kind — bullets,
+    collapsibles and mermaid blocks — so the verifier can check coverage against
+    it, and a reader can audit the leaf against its source in one place."""
+    kind = item.get("kind", "bullet")
+    text = item.get("text", "")
+    if kind == "details":
+        return f'<div class="src-details">[details] {_md_inline(text)}</div>'
+    if kind == "mermaid":
+        return '<div class="src-mermaid">[diagram] mermaid</div>'
+    return f'<div>{_md_inline(_BULLET.sub("", text))}</div>'
+
+
+def _source_html(items: List[dict], title: str = "Source audit") -> str:
+    rows = "".join(_source_row(i) for i in items)
     return f'<h2>{_esc(title)}</h2><div class="source">{rows}</div>'
 
 
@@ -318,26 +332,33 @@ def write_shared_assets(out_root: "str | Path") -> Path:
     return assets
 
 
-def _iter_leaves(node):
+def iter_leaves(node):
     yield node
     for b in (node.get("branches") or {}).values():
-        yield from _iter_leaves(b)
+        yield from iter_leaves(b)
     for c in node.get("children", []):
-        yield from _iter_leaves(c)
+        yield from iter_leaves(c)
 
 
 def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
-    """Generate notebooks for every leaf + the shared assets; return the files."""
+    """Generate notebooks for every leaf + the shared assets; return the files.
+
+    Also writes the module's `spec.json` next to the notebooks (SPEC §13's derived
+    machine contract), so the verifier can read the frozen checklists from the
+    artifact tree instead of re-running the pipeline.
+    """
     module_slug = Path(inv["root"]).name
     write_shared_assets(out_root)
-    leaves = [n for n in _iter_leaves(spec["root"]) if "checklist" in n]
+    module_dir = Path(out_root) / module_slug
+    leaves = [n for n in iter_leaves(spec["root"]) if "checklist" in n]
     written: List[Path] = []
     for i, leaf in enumerate(leaves):
-        leaf_dir = Path(out_root) / module_slug / "leaves" / f"leaf-{i:03d}"
+        leaf_dir = module_dir / "leaves" / f"leaf-{i:03d}"
         leaf_dir.mkdir(parents=True, exist_ok=True)
         out = leaf_dir / "notebook.html"
         out.write_text(render_notebook(leaf), encoding="utf-8")
         written.append(out)
+    (module_dir / "spec.json").write_text(json.dumps(spec, indent=2), encoding="utf-8")
     return written
 
 

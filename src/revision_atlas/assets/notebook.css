@@ -218,3 +218,6 @@ details summary { cursor: pointer; color: var(--accent); }
    seam between two entries is visible instead of running together. */
 .source div { margin: 0 0 var(--line); }
 .source div:last-child { margin-bottom: 0; }
+/* the non-bullet source items (collapsibles, mermaid blocks) read as audit
+   markers, quieter than the prose they sit among */
+.source .src-details, .source .src-mermaid { color: #7b8494; }

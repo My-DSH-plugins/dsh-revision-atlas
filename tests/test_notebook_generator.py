@@ -21,7 +21,8 @@ def _full_leaf():
         "prompt": "Why does it slip past review?",
         "reveal": "Plausibility, not truth.",
         "diagrams": [{"kind": "mermaid", "svg": "<svg><text>A</text></svg>"}],
-        "source": ["- a bullet", "- another bullet"],
+        "source": [{"kind": "bullet", "line": 1, "text": "a bullet"},
+                   {"kind": "details", "line": 2, "text": "Collapsible A"}],
     }
 
 
