@@ -11,12 +11,15 @@ the markdown — so the spec, not markmap, is the source of truth (SPEC §10).
 from __future__ import annotations
 
 import argparse
+import base64
 import html as _html
 import json
 from pathlib import Path
 from typing import List, Optional
 
 from .extractor import extract
+from .leaf_generator import annotate_artifacts
+from .mermaid_render import render_leaf_mermaids
 from .spec_writer import build_structure
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
@@ -56,17 +59,57 @@ def _content_html(node: dict) -> str:
     return inner
 
 
-def _checklist_html(item: dict) -> str:
-    kind = item["kind"]
-    if kind == "claim":
-        return _esc(item["text"])
-    if kind == "details":
-        # summary is HTML captured verbatim from <summary>; render it, don't escape.
-        label = item.get("summary") or f"line {item['line']}"
-        return f'<span style="color:#8b93a7">[details]</span> {label}'
-    if kind == "mermaid":
-        return f'<span style="color:#8b93a7">[diagram]</span> mermaid (line {item["line"]})'
-    return ""
+def _img_data_uri(svg: str) -> str:
+    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{b64}"
+
+
+def _diagram_node(d: dict) -> dict:
+    """One diagram slot -> an image-only markmap node (SPEC §10: images survive
+    only as image-only nodes), or a placeholder until the art is generated."""
+    if d.get("svg"):
+        img = (
+            f'<img src="{_img_data_uri(d["svg"])}" '
+            'style="max-width:280px;background:#fff;border-radius:4px" />'
+        )
+        return {"content": img, "children": []}
+    kind = d.get("kind", "handdrawn")
+    label = {"handdrawn": "hand-drawn sketch", "mermaid": "mermaid"}.get(kind, kind)
+    return {"content": f'<span style="color:#8b93a7">[diagram] {label} — pending</span>', "children": []}
+
+
+def _leaf_artifact_children(node: dict) -> List[dict]:
+    """The artifact surface a leaf shows in the map: recall bullets, diagrams,
+    self-test (prompt + collapsed reveal), and the collapsed source audit."""
+    kids: List[dict] = []
+    for b in node.get("recall", []):
+        kids.append({"content": f"• {_esc(b)}", "children": []})
+    for d in node.get("diagrams", []):
+        kids.append(_diagram_node(d))
+    if node.get("prompt"):
+        inner = (
+            f'<b>self-test</b><div style="color:#8b93a7;font-size:11px">'
+            f"{_esc(node['prompt'])}</div>"
+        )
+        reveal = node.get("reveal", "")
+        if reveal:
+            inner += (
+                '<details style="font-size:11px;margin-top:2px">'
+                "<summary>reveal</summary>"
+                f'<div style="color:#9aa3b2">{_esc(reveal)}</div></details>'
+            )
+        kids.append({"content": inner, "children": []})
+    if node.get("source"):
+        src_html = "<br>".join(_esc(s) for s in node["source"])
+        kids.append({
+            "content": (
+                f'<details style="font-size:11px;color:#9aa3b2">'
+                f"<summary>source ({len(node['source'])})</summary>"
+                f"<div>{src_html}</div></details>"
+            ),
+            "children": [],
+        })
+    return kids
 
 
 def build_markmap_tree(spec: dict) -> dict:
@@ -77,9 +120,8 @@ def build_markmap_tree(spec: dict) -> dict:
             children.append(convert(b))
         for c in node.get("children", []):
             children.append(convert(c))
-        if node.get("checklist"):
-            for item in node["checklist"]:
-                children.append({"content": _checklist_html(item), "children": []})
+        if node.get("checklist") is not None:
+            children.extend(_leaf_artifact_children(node))
         if children:
             mn["children"] = children
         return mn
@@ -146,9 +188,10 @@ html {{ font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 
 
 
 def main(argv: "List[str] | None" = None) -> int:
-    ap = argparse.ArgumentParser(description="Revision Atlas module-map renderer (ticket 0004)")
+    ap = argparse.ArgumentParser(description="Revision Atlas module-map renderer (ticket 0004+0005)")
     ap.add_argument("module_dir")
     ap.add_argument("--semantic", help="JSON file mapping leaf title -> claims (agent pass)")
+    ap.add_argument("--recall", help="JSON file mapping leaf title -> {recall,prompt,reveal} (self-test pass)")
     ap.add_argument("--out-dir", default=".", help="write index.html here")
     args = ap.parse_args(argv)
 
@@ -157,7 +200,14 @@ def main(argv: "List[str] | None" = None) -> int:
     if args.semantic:
         with open(args.semantic, encoding="utf-8") as f:
             semantic = json.load(f)
-    spec = build_structure(inv, semantic=semantic)["spec"]
+    recall = None
+    if args.recall:
+        with open(args.recall, encoding="utf-8") as f:
+            recall = json.load(f)
+    spec = build_structure(inv, semantic=semantic, recall=recall)["spec"]
+    # Leaf artifacts (0005): diagram slots + source bullets, then mermaid SVGs.
+    annotate_artifacts(inv, spec["root"])
+    render_leaf_mermaids(inv, spec["root"])
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.html").write_text(render_map(spec), encoding="utf-8")

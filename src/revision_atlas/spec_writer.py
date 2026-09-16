@@ -129,19 +129,32 @@ def _checklist_seed(inv: dict, node: dict) -> list:
     return items
 
 
-def _annotate_leaves(inv: dict, node: dict, semantic: "Optional[Dict[str, List[str]]]" = None) -> dict:
+def _annotate_leaves(
+    inv: dict,
+    node: dict,
+    semantic: "Optional[Dict[str, List[str]]]" = None,
+    recall: "Optional[Dict[str, dict]]" = None,
+) -> dict:
     """Attach a `checklist` to every leaf: agent claims + deterministic seed.
 
     `semantic` maps a leaf's title to the claim strings the agent drafted from
     the source (the agentic half; absent in the deterministic seed alone).
+    `recall` maps a leaf's title to `{recall, prompt, reveal}` — the self-test
+    agent pass (ticket 0005), folded in here so the plan.md review surface shows
+    it alongside the checklist it must survive.
     """
     for b in (node.get("branches") or {}).values():
-        _annotate_leaves(inv, b, semantic)
+        _annotate_leaves(inv, b, semantic, recall)
     for c in node.get("children", []):
-        _annotate_leaves(inv, c, semantic)
+        _annotate_leaves(inv, c, semantic, recall)
     if node["kind"] in LEAF_KINDS:
         claims = [{"kind": "claim", "text": t} for t in (semantic or {}).get(node["title"], [])]
         node["checklist"] = claims + _checklist_seed(inv, node)
+        rc = (recall or {}).get(node["title"])
+        if rc:
+            node["recall"] = rc.get("recall", [])
+            node["prompt"] = rc.get("prompt", "")
+            node["reveal"] = rc.get("reveal", "")
     return node
 
 
@@ -191,6 +204,14 @@ def _render_md(root: dict, coverage: dict) -> str:
                     lines.append(f"{ipad}- [details] {label}")
                 elif it["kind"] == "mermaid":
                     lines.append(f"{ipad}- [diagram] mermaid (line {it['line']})")
+        if node.get("recall") is not None:
+            lines.append(f"{ipad}recall:")
+            for r in node["recall"]:
+                lines.append(f"{ipad}  - {r}")
+        if node.get("prompt"):
+            lines.append(f"{ipad}prompt: {node['prompt']}")
+        if node.get("reveal"):
+            lines.append(f"{ipad}reveal: {node['reveal']}")
         for child in node.get("children", []):
             walk(child, depth + 1)
 
@@ -216,7 +237,11 @@ def _render_md(root: dict, coverage: dict) -> str:
     return "\n".join(head + lines)
 
 
-def build_structure(inv: dict, semantic: "Optional[Dict[str, List[str]]]" = None) -> dict:
+def build_structure(
+    inv: dict,
+    semantic: "Optional[Dict[str, List[str]]]" = None,
+    recall: "Optional[Dict[str, dict]]" = None,
+) -> dict:
     readme = next(f for f in inv["files"] if f.get("kind") == "module")
     readme_headings = inv["headings"].get(readme["path"], [])
     root, line_to_node = _build_heading_tree(readme_headings, readme["path"])
@@ -305,7 +330,7 @@ def build_structure(inv: dict, semantic: "Optional[Dict[str, List[str]]]" = None
              "file": f["path"], "line": None, "children": []}
         )
 
-    _annotate_leaves(inv, root, semantic)
+    _annotate_leaves(inv, root, semantic, recall)
 
     def _leaf_stats(node, acc):
         for b in (node.get("branches") or {}).values():
@@ -341,6 +366,10 @@ def main(argv: "List[str] | None" = None) -> int:
         help="JSON file mapping leaf title -> claim strings (the agent pass)",
     )
     ap.add_argument(
+        "--recall",
+        help="JSON file mapping leaf title -> {recall, prompt, reveal} (self-test pass)",
+    )
+    ap.add_argument(
         "--out-dir",
         help="write plan.md + spec.json here (default: print both to stdout)",
     )
@@ -351,7 +380,11 @@ def main(argv: "List[str] | None" = None) -> int:
     if args.semantic:
         with open(args.semantic, encoding="utf-8") as f:
             semantic = json.load(f)
-    out = build_structure(inv, semantic=semantic)
+    recall = None
+    if args.recall:
+        with open(args.recall, encoding="utf-8") as f:
+            recall = json.load(f)
+    out = build_structure(inv, semantic=semantic, recall=recall)
 
     if args.out_dir:
         Path(args.out_dir).mkdir(parents=True, exist_ok=True)

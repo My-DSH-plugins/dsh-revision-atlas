@@ -10,8 +10,8 @@ Adds to every leaf the artifact fields the agent pass will later fill:
   - `source` — the raw bullet lines from the leaf's source range (the collapsed
     audit surface the learner diffs against).
 
-The agentic fields (recall block, prompt/reveal, and the diagram art itself)
-are a later pass over this skeleton.
+The agentic text fields (recall block, prompt/reveal) merge in spec_writer's
+plan (`--recall`); the diagram art itself is a later pass over this skeleton.
 """
 from __future__ import annotations
 

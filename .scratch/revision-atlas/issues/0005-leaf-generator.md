@@ -2,17 +2,17 @@
 
 - **Blocked by:** 0003
 - **Blocks:** 0006, 0007
-- **Status:** in progress — deterministic skeleton done; agentic pass + mermaid render remain
+- **Status:** in progress — recall/prompt/reveal pass + renderer upgrade done; hand-drawn art generation remains
 
 ## Goal
 
 Against the frozen checklist, generate per leaf: the recall block (3–5 bullets
-≤60 words), one diagram (hand-drawn by default; mermaid when content-driven per
-§8), the `prompt`/`reveal`, and the collapsed source audit bullets.
+≤60 words), a list of diagrams (hand-drawn by default; mermaid when content-driven
+per §8 / adr/0003), the `prompt`/`reveal`, and the collapsed source audit bullets.
 
 ## Acceptance
 
-- exactly one diagram slot per leaf, with its `kind` justified per §8
+- a **list** of diagram slots per leaf, each `kind` justified per §8 / adr/0003
 - mermaid path honours adr/0002 (build-time SVG; top-level `htmlLabels:false`; unique render id)
 - hand-drawn art keeps real `<text>` labels + embedded font subset (§8)
 - outputs land per §13 directory layout
@@ -20,25 +20,37 @@ Against the frozen checklist, generate per leaf: the recall block (3–5 bullets
 ## Open decision
 
 - ~~The diagram-kind classifier boundary (handdrawn vs mermaid vs none, §15).~~
-  **Resolved:** deterministic where mechanical (source mermaid block → `mermaid`;
-  `needs-review` residue → `none`; else `handdrawn` default); the agent may
-  propose `mermaid` (generate fresh) or `none` during the semantic pass, with a
-  one-line justification, Gate-2-gated.
+  **Resolved** and recorded as `adr/0003`: deterministic where mechanical
+  (source mermaid block → `mermaid`; `needs-review` residue → `[]`; else
+  `handdrawn`); the agent may propose `mermaid`/`none` during the semantic pass,
+  Gate-2-gated. A leaf holds an **array** of diagrams.
 
-## Done (deterministic skeleton)
+## Done
 
-- `leaf_generator.annotate_artifacts(inv, root)` adds to every leaf:
-  - `diagram` — `{kind, justification[, mmd_line]}`, kind assigned per the rule above;
-  - `source` — the raw `- `/`* `/`+ ` bullet lines from the leaf's source range.
-- Tested on M2 (all `handdrawn`) and M5 (source-mermaid → `mermaid`, residue →
-  `none`, no-mermaid → `handdrawn`); source bullets extracted.
+- **Deterministic skeleton** — `leaf_generator.annotate_artifacts(inv, root)` adds
+  to every leaf: `diagrams` (list; `{kind, justification[, mmd_line]}`, kind per
+  adr/0003) and `source` (the raw `- `/`* `/`+ ` bullet lines from the leaf's range).
+  Tested on M2 (all `handdrawn`) and M5 (source-mermaid → array of `mermaid`,
+  residue → `[]`, no-mermaid → `handdrawn`); M5's "Deriving the baseline and
+  thresholds." H4 holds 4 mermaid entries.
+- **Mermaid render** — `mermaid_render.render_leaf_mermaids(inv, root)` renders
+  every mermaid entry's source to SVG; M5 smoke yields 6 SVGs (not 3).
+- **Recall / prompt / reveal pass** — instruction `.scratch/revision-atlas/skill/
+  recall-pass.md` (cold-testable); `spec_writer` accepts `--recall` and renders
+  recall/prompt/reveal in `plan.md` (Gate-2 review surface).
+- **Renderer upgrade** — `render_map` now shows the leaf artifact instead of the
+  checklist placeholder: recall bullets, diagrams (mermaid SVG inlined as base64
+  data-URI in an image-only node; hand-drawn shown as "pending" until art lands),
+  self-test (`prompt` + collapsed `reveal`), and the collapsed source audit. M5
+  map is self-contained (no `<script src`/`<link`), 6 mermaid data-URIs inlined.
 
-## Remaining (agentic + render)
+## Remaining
 
-- Recall block (3–5 bullets ≤60 words), `prompt`/`reveal` — agent pass (like the
-  semantic pass), stored in `plan.md`.
-- Diagram art: render the source mermaid `.mmd` to SVG (adr/0002 machinery:
-  vendored mermaid bundle + headless Chromium), or generate a hand-drawn SVG —
-  then inline the SVG into the map.
-- Renderer upgrade: the map's leaf shows the artifact (recall + diagram + prompt +
-  collapsed source) instead of the checklist placeholder.
+- **Hand-drawn diagram art** — generate a hand-drawn SVG (real `<text>` labels +
+  embedded handwriting-font subset, per §8) for every `handdrawn` slot. This is
+  the last open piece: the sketch renderer / agent-authored-art path, and wiring
+  `diagram.svg` back into the map + notebook.
+- **Size note**: inlining the source audit + mermaid in the Layer-1 map pushes M5
+  to ~886 KB (vs ~350 KB for the checklist-only map). Acceptable for now; revisit
+  if the "one self-contained HTML" budget matters (e.g. truncate source to a
+  count in the map, full bullets in the notebook).

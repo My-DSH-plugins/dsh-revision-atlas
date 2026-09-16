@@ -120,6 +120,29 @@ class TestStructurePlan(unittest.TestCase):
         self.assertEqual(leaf["checklist"][0]["text"], "Fluent false output")
         self.assertIn("Fluent false output", out["plan_md"])
 
+    def test_recall_merge(self):
+        out = build_structure(
+            extract(M2),
+            recall={
+                "1. Hallucination & confabulation": {
+                    "recall": ["fluent false output", "plausibility not truth"],
+                    "prompt": "Why does a fluent wrong answer slip past review?",
+                    "reveal": "It optimizes plausibility, not truth.",
+                }
+            },
+        )
+        leaf = next(
+            n for n in _all_nodes(out["root"]) if n["title"] == "1. Hallucination & confabulation"
+        )
+        self.assertEqual(leaf["recall"], ["fluent false output", "plausibility not truth"])
+        self.assertEqual(leaf["prompt"], "Why does a fluent wrong answer slip past review?")
+        self.assertEqual(leaf["reveal"], "It optimizes plausibility, not truth.")
+        # reviewable in plan.md (Gate 2)
+        self.assertIn("recall:", out["plan_md"])
+        self.assertIn("fluent false output", out["plan_md"])
+        self.assertIn("prompt: Why does a fluent wrong answer slip past review?", out["plan_md"])
+        self.assertIn("reveal: It optimizes plausibility, not truth.", out["plan_md"])
+
     def test_section_intros_get_checklists(self):
         # A section with children owns its intro range and gets a checklist, so
         # its intro prose isn't silently dropped (regression from the cold test).
