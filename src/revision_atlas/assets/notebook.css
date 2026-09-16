@@ -67,6 +67,28 @@ body {
 .stage.at-back { transform: translateX(var(--cover-shift-back)); }
 .book { overflow: hidden; }
 
+/* The spine. Two pages meeting edge to edge read as ONE wide sheet, so mark the
+   seam where they are sewn: a soft gutter either side of a centre stitch line.
+   Hidden while a cover is showing — a closed book has no seam on screen. */
+.stage::after {
+  content: "";
+  position: absolute; top: 0; bottom: 0; left: 50%;
+  width: calc(var(--page-w) * 0.09);
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to right,
+    rgba(26, 26, 46, 0.10),
+    rgba(26, 26, 46, 0.015) 42%,
+    rgba(26, 26, 46, 0.22) 49.5%,
+    rgba(26, 26, 46, 0.22) 50.5%,
+    rgba(26, 26, 46, 0.015) 58%,
+    rgba(26, 26, 46, 0.10)
+  );
+  pointer-events: none;
+  z-index: 26;
+}
+.stage.at-front::after, .stage.at-back::after { display: none; }
+
 /* The page-turn zone: the cell cut by the red margin rule and the topmost blue
    rule — the only region that turns the page. The square is already drawn by the
    page's own rules; the zone adds no chrome of its own. */
@@ -87,14 +109,13 @@ body {
 .page {
   position: relative;
   background-color: #fffdf6;
-  /* TWO image layers, so each takes its own clip value unambiguously:
-       layer 1 = the ruling, clipped to the content box (starts after the blank
-                 top band, stops at the left / right margins);
-       layer 2 = the paper itself, clipped to the border box so it fills the WHOLE
-                 page. (A background-COLOUR does not take the clip list in the same
-                 order as an image layer, which left the paper inset and the page
-                 padding transparent — visible as a smaller page than the cover.)
-     Every rule sits on the text baseline. */
+  /* TWO image layers, each with its own box:
+       layer 1 = the ruling.  In a real ruled book the lines run the FULL page
+                 width — from one open edge to the other, straight across the red
+                 margin rule (the margin rule is drawn on top of them). Only
+                 vertically are they bounded: they start below the blank top band
+                 and stop at the bottom margin.
+       layer 2 = the paper, filling the whole page. */
   background-image:
     repeating-linear-gradient(
       to bottom,
@@ -106,8 +127,11 @@ body {
       transparent var(--line)
     ),
     linear-gradient(#fffdf6, #fffdf6);
-  background-origin: content-box, border-box;
-  background-clip: content-box, border-box;
+  background-size: 100% calc(100% - var(--margin-top) - var(--margin-bottom)), 100% 100%;
+  background-position: 0 var(--margin-top), 0 0;
+  background-repeat: no-repeat, no-repeat;
+  background-origin: border-box, border-box;
+  background-clip: border-box, border-box;
   padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
   font-size: var(--ink-size);
   line-height: var(--line);
