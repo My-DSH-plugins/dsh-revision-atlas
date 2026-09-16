@@ -97,9 +97,16 @@ from the skill picker.
 
 ```sh
 claude plugin install /path/to/dsh-revision-atlas
+
+# or fetch it from npm first, then install the fetched copy as a local path:
+npm install dsh-revision-atlas
+claude plugin install node_modules/dsh-revision-atlas
 ```
 
-The `.claude-plugin/plugin.json` manifest is included; the skills are the same
+Claude Code distributes plugins through **marketplaces and paths**, not npm — npm is
+only a plugin's *dependency* registry. So the npm step above is a transport: it
+fetches the files, and Claude installs them from the local path. The
+`.claude-plugin/plugin.json` manifest ships in the package; the skills are the same
 `skills/` directory.
 
 ## Why you can trust it

@@ -15,7 +15,8 @@
   "files": [
     "index.js",
     "cordis.patch.yml",
-    "skills"
+    "skills",
+    ".claude-plugin"
   ],
   "dsh": {
     "bundle": {
