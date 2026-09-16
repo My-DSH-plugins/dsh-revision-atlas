@@ -86,20 +86,27 @@ body {
 .page {
   position: relative;
   background-color: #fffdf6;
-  /* one rule per band, on the text baseline; clipped to the content box so the
-     rules start after the blank top band and stop at the left / right margins */
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(var(--rule-at) - 1px),
-    var(--rule) calc(var(--rule-at) - 1px),
-    var(--rule) var(--rule-at),
-    transparent var(--rule-at),
-    transparent var(--line)
-  );
+  /* TWO image layers, so each takes its own clip value unambiguously:
+       layer 1 = the ruling, clipped to the content box (starts after the blank
+                 top band, stops at the left / right margins);
+       layer 2 = the paper itself, clipped to the border box so it fills the WHOLE
+                 page. (A background-COLOUR does not take the clip list in the same
+                 order as an image layer, which left the paper inset and the page
+                 padding transparent — visible as a smaller page than the cover.)
+     Every rule sits on the text baseline. */
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--rule-at) - 1px),
+      var(--rule) calc(var(--rule-at) - 1px),
+      var(--rule) var(--rule-at),
+      transparent var(--rule-at),
+      transparent var(--line)
+    ),
+    linear-gradient(#fffdf6, #fffdf6);
   background-origin: content-box, border-box;
-  background-clip: content-box, border-box;   /* rules clipped to the content box;
-                                                 the PAPER itself fills the page */
+  background-clip: content-box, border-box;
   padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
   font-size: var(--ink-size);
   line-height: var(--line);
