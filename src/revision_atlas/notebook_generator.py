@@ -170,20 +170,29 @@ def render_notebook(node: dict, assets_rel: str = "../../../assets") -> str:
 
   // StPageFlip's own corner fold fires over a diagonal/5 (~171px) zone at EVERY
   // book corner — far bigger than the page's margin square, and it includes the
-  // bottom corners. Confine it to the square: forward hover that happens inside a
-  // turn zone to the flip engine (so the real fold renders there), and hold back
-  // every mousemove that happens outside one, so no fold appears anywhere else.
+  // bottom corners. Confine it: hand the flip engine the pointer only while it is
+  // inside a turn square, and park it mid-book the moment the pointer leaves —
+  // StPageFlip clears the fold on a point that is not on a corner, so the fold
+  // disappears again. Raw moves are held back so its wide zone never sees them.
   const flipEl = el.querySelector('.stf__block') || el;
-  const relay = (x, y) => flipEl.dispatchEvent(new MouseEvent('mousemove', {{
-    clientX: x, clientY: y, bubbles: true,
-  }}));
-  [prevZone, nextZone].forEach((zone) => {{
-    zone.addEventListener('mousemove', (e) => relay(e.clientX, e.clientY));
-    zone.addEventListener('mouseleave', () => relay(0, 0));
-  }});
+  const relay = (x, y) => {{
+    const ev = new MouseEvent('mousemove', {{ clientX: x, clientY: y, bubbles: true }});
+    ev.atlasRelay = true;   // flagged so our own filter lets it through
+    flipEl.dispatchEvent(ev);
+  }};
+  let wasInZone = false;
   document.addEventListener('mousemove', (e) => {{
+    if (e.atlasRelay) return;
+    e.stopPropagation();
     const t = e.target;
-    if (!(t && t.classList && t.classList.contains('turn'))) e.stopPropagation();
+    const inZone = !!(t && t.classList && t.classList.contains('turn'));
+    if (inZone) {{
+      relay(e.clientX, e.clientY);          // fold follows the pointer inside the square
+    }} else if (wasInZone) {{
+      const r = el.getBoundingClientRect();  // park mid-book → the fold is cleared
+      relay(r.left + r.width / 2, r.top + r.height / 2);
+    }}
+    wasInZone = inZone;
   }}, true);
 }})();
 </script>
