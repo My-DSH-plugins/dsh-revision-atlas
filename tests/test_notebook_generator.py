@@ -172,3 +172,24 @@ class TestSharedAssets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDiagramPanZoom(unittest.TestCase):
+    """A dense diagram must be movable (0014)."""
+
+    def test_the_diagram_gets_a_transformable_wrapper_and_a_hint(self):
+        from revision_atlas.notebook_generator import _diagram_html
+
+        html = _diagram_html({"kind": "mermaid", "svg": "<svg><text>A</text></svg>"})
+        self.assertIn('class="diagram-zoom"', html)      # one element to transform
+        self.assertIn('class="diagram-hint"', html)      # and it says so
+        self.assertIn("scroll to zoom", html)
+
+    def test_the_notebook_carries_the_pan_zoom_behaviour(self):
+        html = render_notebook(
+            {"title": "T", "kind": "section", "prompt": "q",
+             "diagrams": [{"kind": "mermaid", "svg": "<svg><text>A</text></svg>"}]}
+        )
+        for needed in ("pointerdown", "pointermove", "wheel", "dblclick",
+                       "setPointerCapture", "scale(${"):
+            self.assertIn(needed, html)

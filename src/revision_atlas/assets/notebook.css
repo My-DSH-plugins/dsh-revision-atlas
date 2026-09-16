@@ -408,3 +408,26 @@ details summary { cursor: pointer; color: var(--accent); }
   top: auto;
   bottom: calc(var(--page-h) * 0.088);
 }
+
+/* --- pan and zoom a diagram ------------------------------------------------
+ * A dense mermaid flowchart fitted to a 520px page is unreadable, and nothing on
+ * the page said it could be moved (0014). The SVG sits in an inner wrapper and the
+ * whole interaction is one CSS transform on it: drag pans, the wheel zooms about
+ * the cursor, a double-click returns to the fitted view.
+ */
+.page-diagram .diagram {
+  overflow: hidden;
+  touch-action: none;          /* a drag pans the diagram, it does not scroll */
+  cursor: grab;
+}
+.page-diagram .diagram.is-panning { cursor: grabbing; }
+.page-diagram .diagram-zoom {
+  transform-origin: center center;
+  will-change: transform;
+}
+.page-diagram .diagram:hover .diagram-zoom { transition: none; }
+.page-diagram .diagram-hint {
+  margin-top: calc(var(--line) * 0.3);
+  font-size: calc(var(--ink-size) * 0.68);
+  color: #9aa3b2;
+}

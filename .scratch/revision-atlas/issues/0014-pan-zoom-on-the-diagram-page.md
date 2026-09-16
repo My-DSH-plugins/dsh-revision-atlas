@@ -2,7 +2,7 @@
 
 - **Blocked by:** 0006 (done)
 - **Blocks:** —
-- **Status:** OPEN — moved out of 0006, not built
+- **Status:** done — moved out of 0006, built and verified
 
 ## The gap
 
@@ -33,3 +33,28 @@ the exception.
 
 Headless Chromium showing the transform changing on a synthesised drag/wheel, plus
 a before/after screenshot of a dense diagram at page size.
+
+## Done
+
+`.diagram` wraps the SVG in a `.diagram-zoom` element and the whole interaction is
+one CSS transform on it: drag pans, the wheel zooms **about the cursor**, a
+double-click returns to the fitted view, zoom clamped to 0.6–6×. A muted hint under
+the diagram says so, because an affordance nobody can see is not an affordance.
+`touch-action: none` keeps a drag from scrolling the page, and the turn squares are
+the page's top corners, so a drag can never turn the book.
+
+`setPointerCapture` is wrapped in try/catch: it throws `InvalidPointerId` for a
+synthetic or already-released pointer, which would take the whole notebook's script
+down with it.
+
+**Evidence** (headless Chromium, a synthetic wheel + pointer drag + double-click on
+a real generated notebook):
+
+| action | transform |
+|---|---|
+| on load | `translate(0px, 0px) scale(1)` |
+| wheel, ΔY −240 | `translate(0px, 0px) scale(1.43333)` |
+| drag +60,+30 | `translate(60px, 30px) scale(1.43333)` |
+| double-click | `translate(0px, 0px) scale(1)` |
+
+The `.is-panning` cursor state is set on pointerdown and cleared on pointerup.

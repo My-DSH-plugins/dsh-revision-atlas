@@ -137,7 +137,16 @@ def _recall_html(node: dict) -> str:
 
 
 def _diagram_html(d: dict) -> str:
-    return '<h2>Diagram</h2><div class="diagram">' + d["svg"] + "</div>"
+    """The diagram page. The SVG sits in an inner wrapper so pan/zoom is one CSS
+    transform on one element, and a muted hint says so — a static diagram of a
+    dense flowchart is unreadable at page size and nothing on the page said it
+    could be moved (`0014`)."""
+    return (
+        '<h2>Diagram</h2><div class="diagram">'
+        '<div class="diagram-zoom">' + d["svg"] + "</div>"
+        "</div>"
+        '<div class="diagram-hint">drag to pan · scroll to zoom · double-click to reset</div>'
+    )
 
 
 # The nested sheet's capacity, in nested lines, measured against the shipped CSS
@@ -361,6 +370,54 @@ def render_notebook(
   // actually has, so the book never overflows and content is never clipped. The
   // ruling's geometry is all ratios of --page-w / --page-h, so it scales with it.
   const RATIO = 520 / 680;
+  // --- pan and zoom a diagram inside its page ---------------------------------
+  // A dense flowchart is unreadable fitted to a 520px page and there was no way to
+  // enlarge it. One transform on an inner wrapper: drag pans, the wheel zooms about
+  // the cursor, a double-click returns to the fitted view. The turn squares are the
+  // page's top corners and pointer events here never reach them, so a drag cannot
+  // turn the book.
+  for (const dg of el.querySelectorAll('.diagram')) {{
+    const inner = dg.querySelector('.diagram-zoom');
+    if (!inner) continue;
+    const MIN = 0.6, MAX = 6;
+    let s = 1, tx = 0, ty = 0, drag = null;
+    const apply = () => {{ inner.style.transform = `translate(${{tx}}px, ${{ty}}px) scale(${{s}})`; }};
+    const reset = () => {{ s = 1; tx = 0; ty = 0; apply(); }};
+    const capture = (id, on) => {{
+      try {{ on ? dg.setPointerCapture(id) : dg.releasePointerCapture(id); }} catch (e) {{ /* not an active pointer */ }}
+    }};
+    dg.addEventListener('pointerdown', (e) => {{
+      if (e.button !== 0) return;
+      drag = {{ x: e.clientX - tx, y: e.clientY - ty }};
+      capture(e.pointerId, true);
+      dg.classList.add('is-panning');
+      e.preventDefault();
+    }});
+    dg.addEventListener('pointermove', (e) => {{
+      if (!drag) return;
+      tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply();
+    }});
+    const stop = (e) => {{
+      if (!drag) return;
+      drag = null; dg.classList.remove('is-panning'); capture(e.pointerId, false);
+    }};
+    dg.addEventListener('pointerup', stop);
+    dg.addEventListener('pointercancel', stop);
+    dg.addEventListener('wheel', (e) => {{
+      e.preventDefault();
+      const r = dg.getBoundingClientRect();
+      const next = Math.min(MAX, Math.max(MIN, s * Math.exp(-e.deltaY * 0.0015)));
+      const f = next / s;
+      // keep whatever is under the cursor under the cursor
+      const cx = e.clientX - r.left - r.width / 2 - tx;
+      const cy = e.clientY - r.top - r.height / 2 - ty;
+      tx -= cx * (f - 1); ty -= cy * (f - 1);
+      s = next; apply();
+    }}, {{ passive: false }});
+    dg.addEventListener('dblclick', reset);
+    reset();
+  }}
+
   // --- the nested reveal: swap pages, conserve every answer -------------------
   // The pager sits at the BOTTOM of the page, which is the one region of the
   // notebook with no turn zone (the turn squares are the top margin corners), so
