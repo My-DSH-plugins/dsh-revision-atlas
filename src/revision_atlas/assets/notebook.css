@@ -34,6 +34,7 @@
   --margin-top: calc(var(--page-h) * 0.1662);   /* blank band above the first rule */
   --margin-right: calc(var(--page-w) * 0.0692);
   --margin-bottom: calc(var(--page-h) * 0.0559);
+  --text-gap: calc(var(--ink-size) * 0.55);     /* writing starts to the RIGHT of the rule */
 
   /* half the REAL page width — set by the script, never a literal, so it cannot
      drift when the page resizes */
@@ -177,4 +178,16 @@ body {
 .page-diagram .diagram svg { max-width: 100%; height: auto; display: block; }
 
 details summary { cursor: pointer; color: var(--accent); }
-.source div { margin: 0; }
+
+/* Hand writing leaves a margin on BOTH sides of the ruled area: it starts to the
+   right of the red rule (never under it) and stops short of the ruling's right
+   end. The ruling itself keeps its full width. */
+.page h2, .page p, .page ul, .page .source, .page details {
+  padding-left: var(--text-gap);
+  padding-right: calc(var(--text-gap) * 1.8);
+}
+
+/* One source entry per ruled band, with a SKIPPED rule between entries, so the
+   seam between two entries is visible instead of running together. */
+.source div { margin: 0 0 var(--line); }
+.source div:last-child { margin-bottom: 0; }

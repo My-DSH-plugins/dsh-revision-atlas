@@ -12,6 +12,8 @@ import argparse
 import hashlib
 import html as _html
 import json
+import math
+import re
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -33,6 +35,50 @@ SHARED_ASSETS = {
 
 def _esc(text: str) -> str:
     return _html.escape(text)
+
+
+_BULLET = re.compile(r"^\s*[-*+]\s+")
+
+
+def _md_inline(text: str) -> str:
+    """Render the inline Markdown a source bullet actually contains.
+
+    The source audit kept its raw lines verbatim, so `- **What it is:** …` was
+    printed with the bullet dash and the asterisks showing. Escape first, then
+    turn the emphasis markers into real markup — never the other way round.
+    """
+    t = _esc(text)
+    t = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t, flags=re.S)
+    t = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", t)
+    t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+    return t
+
+
+_SOURCE_CHARS_PER_LINE = 42   # Kalam at the ruled size, across the ruled width
+_SOURCE_LINES_PER_PAGE = 15   # ruling lines left for body text after the heading
+
+
+def _chunk_source(items: List[str]) -> List[List[str]]:
+    """Split the source bullets over as many pages as they need.
+
+    The lines-per-page count is a constant of the page's own ratios (ruling,
+    margins and type all scale together), so a character budget is enough and it
+    holds at any window size. Without this the source ran past the ruling and
+    `overflow: hidden` silently dropped whatever did not fit.
+    """
+    pages: List[List[str]] = []
+    cur: List[str] = []
+    used = 0
+    for it in items:
+        lines = max(1, math.ceil(len(it) / _SOURCE_CHARS_PER_LINE)) + 1  # + skipped rule
+        if cur and used + lines > _SOURCE_LINES_PER_PAGE:
+            pages.append(cur)
+            cur, used = [], 0
+        cur.append(it)
+        used += lines
+    if cur:
+        pages.append(cur)
+    return pages or [[]]
 
 
 def _anchor_html(node: dict) -> str:
@@ -86,9 +132,9 @@ def _selftest_html(node: dict) -> str:
     return "<h2>Self-test</h2>" + inner
 
 
-def _source_html(node: dict) -> str:
-    rows = "".join(f"<div>{_esc(b)}</div>" for b in node.get("source", []))
-    return '<h2>Source audit</h2><div class="source">' + rows + "</div>"
+def _source_html(items: List[str], title: str = "Source audit") -> str:
+    rows = "".join(f'<div>{_md_inline(_BULLET.sub("", b))}</div>' for b in items)
+    return f'<h2>{_esc(title)}</h2><div class="source">{rows}</div>'
 
 
 def _pages(node: dict) -> List[Tuple[str, str, str]]:
@@ -106,8 +152,12 @@ def _pages(node: dict) -> List[Tuple[str, str, str]]:
             pages.append(("soft", "page-diagram", _diagram_html(d)))
     if node.get("prompt") or node.get("reveal"):
         pages.append(("soft", "", _selftest_html(node)))
-    if node.get("source"):
-        pages.append(("soft", "", _source_html(node)))
+    src = node.get("source", [])
+    if src:
+        chunks = _chunk_source(src)
+        for i, chunk in enumerate(chunks):
+            title = "Source audit" if i == 0 else f"Source audit (cont. {i + 1}/{len(chunks)})"
+            pages.append(("soft", "", _source_html(chunk, title)))
     pages.append(("hard", "page-cover", _back_cover_html(node)))
     return pages
 
