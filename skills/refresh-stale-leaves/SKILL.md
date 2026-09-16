@@ -9,6 +9,11 @@ description: >-
 
 # Refresh stale leaves
 
+Every relative path and `<base>` here is as the `revision-atlas` skill defines it:
+`<base>` is the directory announced in `<skill_resources>`, and the Python package
+lives in `<base>/tools/`.
+
+
 The atlas is built; the source has since moved. Regenerate the changed leaves and
 nothing else.
 
@@ -19,7 +24,7 @@ nothing else.
    the only thing that needs work.
 2. **Rehydrate the pass inputs.**
    ```
-   PYTHONPATH=src python3 -m revision_atlas.passes <module_dir> --mindmaps <out> --out <dir>
+   PYTHONPATH=<base>/tools python3 -m revision_atlas.passes <module_dir> --mindmaps <out> --out <dir>
    ```
    This writes `semantic.json` / `recall.json` / `mermaid.json` for every leaf, so
    the unchanged ones carry over untouched.

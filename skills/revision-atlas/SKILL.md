@@ -40,10 +40,26 @@ a question, or silence is not approval.
 | plan approved and current | generate |
 | the source moved since the build | the verifier names the leaves; refresh (below) |
 
+## Where the tools live
+
+This skill ships as a bundle: the SKILL.md, the `passes/` instructions, and the
+`tools/` directory holding the Python package. Every relative path in this file and
+in `passes/*` resolves against the base directory announced in `<skill_resources>`;
+below, `<base>` denotes that directory.
+
+The pipeline is standard-library Python, so it runs as:
+
+```
+PYTHONPATH=<base>/tools python3 -m revision_atlas.<module> ...
+```
+
+If the skill is installed somewhere read-only, copy `<base>/tools` to a writable
+location first and point `PYTHONPATH` there.
+
 ## Build
 
 ```
-PYTHONPATH=src python3 -m revision_atlas.build <module_dir> --mindmaps <out> \
+PYTHONPATH=<base>/tools python3 -m revision_atlas.build <module_dir> --mindmaps <out> \
     [--semantic s.json] [--recall r.json] [--mermaid m.json]
 ```
 
@@ -56,7 +72,7 @@ artifacts written). The plan is always written first (`mindmaps/<module>/plan.md
 Four things the pipeline cannot do are done by you, one pass at a time, each in a
 **fresh subagent** given only the pass instruction, the module directory and
 `spec.json`. A pass contaminated by this conversation's context is a pass that cannot
-be trusted. The instructions live beside this file:
+be trusted. The instructions live in `passes/` beside this file:
 
 1. `semantic-pass.md` — each leaf's claims: what must survive compaction.
 2. `recall-pass.md` — each leaf's recall block and self-test (prompt + reveal).
@@ -78,9 +94,9 @@ When the build stops at exit 3:
    and read the reply.
 3. **On approval**: record it, then generate —
    ```
-   PYTHONPATH=src python3 -m revision_atlas.build <module_dir> --mindmaps <out> \
+   PYTHONPATH=<base>/tools python3 -m revision_atlas.build <module_dir> --mindmaps <out> \
        [same pass flags] --approve all --by "<the user's name>"
-   PYTHONPATH=src python3 -m revision_atlas.build <module_dir> --mindmaps <out> \
+   PYTHONPATH=<base>/tools python3 -m revision_atlas.build <module_dir> --mindmaps <out> \
        [same pass flags]
    ```
    `--approve` is your internal verb — the user never types it, and you run it only
@@ -95,7 +111,7 @@ name exactly which leaves are stale; those leaves are the task list.
 
 - Rehydrate the pass inputs for every leaf:
   ```
-  PYTHONPATH=src python3 -m revision_atlas.passes <module_dir> --mindmaps <out> --out <dir>
+  PYTHONPATH=<base>/tools python3 -m revision_atlas.passes <module_dir> --mindmaps <out> --out <dir>
   ```
   This writes `semantic.json` / `recall.json` / `mermaid.json` — the unchanged
   leaves carry over untouched, which is what makes the refresh incremental.
