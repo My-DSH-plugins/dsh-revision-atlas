@@ -35,3 +35,34 @@ class TestAssemble(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestToolsInSync(unittest.TestCase):
+    """The bundle's tools/ is a COPY of src/ — and it must stay one.
+
+    Committed so a fresh clone and the linked plugin work without a build step; the
+    test converts the "edited src/ and forgot to re-sync" hazard from a silent drift
+    into a red test (SPEC §14: a miss is a failure, not a warning).
+    """
+
+    def _files(self, root):
+        out = {}
+        for p in root.rglob("*"):
+            if not p.is_file() or "__pycache__" in p.parts or p.name.endswith(".pyc"):
+                continue
+            out[str(p.relative_to(root))] = p.read_bytes()
+        return out
+
+    def test_the_bundle_tools_match_src(self):
+        src = _REPO / "src" / "revision_atlas"
+        tools = _REPO / "skills" / "revision-atlas" / "tools" / "revision_atlas"
+        a, b = self._files(src), self._files(tools)
+        self.assertEqual(
+            set(a), set(b),
+            "file sets differ — run: python3 -m revision_atlas.package --tools",
+        )
+        for name in a:
+            self.assertEqual(
+                a[name], b[name],
+                f"{name} differs — run: python3 -m revision_atlas.package --tools",
+            )

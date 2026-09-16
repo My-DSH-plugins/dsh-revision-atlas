@@ -1,0 +1,433 @@
+/* Revision Atlas notebook theme (ticket 0006) — a ruled page.
+ *
+ * Geometry comes from the standard ruled-page conventions (measured off
+ * assets/notebookImage.jpg, then checked against published ruling specs):
+ *
+ *   25mm margin rule from the left edge   → 18.1% of the page width
+ *   30mm blank band above the first rule  → 16.6% of the page height
+ *   10mm bottom margin                    →  5.6% of the page height
+ *   college ruling (7.1mm)                →  the page height / 21.25
+ *
+ * Everything is expressed as a RATIO of --page-w / --page-h, which the notebook
+ * sets from the reader's window at load. That way the ruling keeps its geometry
+ * at any size and the book never overflows the viewport.
+ *
+ * A page is filled the way a hand fills it: the top band is blank, and every
+ * written line — the title included — sits ON a ruled line. Nothing floats.
+ */
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 400;
+  src: url('kalam.woff2') format('woff2');
+}
+
+:root {
+  --page-w: 520px;   /* set from the viewport by the notebook script */
+  --page-h: 680px;
+
+  --line: calc(var(--page-h) / 21.25);   /* ruled rhythm = body line-height */
+  --rule-at: calc(var(--line) * 0.6406); /* measured Kalam baseline within a line */
+  --ink-size: calc(var(--line) * 0.531); /* body size (17px at the default) */
+
+  --margin-left: calc(var(--page-w) * 0.1808);  /* 25mm — the red rule sits here */
+  --margin-top: calc(var(--page-h) * 0.1662);   /* blank band above the first rule */
+  --margin-right: calc(var(--page-w) * 0.0692);
+  --margin-bottom: calc(var(--page-h) * 0.0559);
+  --text-gap: calc(var(--ink-size) * 0.55);     /* writing starts to the RIGHT of the rule */
+
+  /* half the REAL page width — set by the script, never a literal, so it cannot
+     drift when the page resizes */
+  --cover-shift-front: -260px;
+  --cover-shift-back: 260px;
+
+  --rule: #b9cdf0;          /* blue ruled line */
+  --margin-rule: #d9534f;   /* red margin line */
+  --ink: #1a1a2e;
+  --accent: #2563eb;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #ece7dd; }
+body {
+  font-family: 'Kalam', 'Segoe Print', 'Comic Sans MS', cursive;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+
+/* --- the flip stage: the book + its two page-turn squares ----------------- */
+.stage {
+  position: relative;
+  /* StPageFlip centres the spread footprint, which parks the front cover on the
+     right half and the back cover on the left half — so shift by half a page
+     while a cover is showing, and let the shift animate as it opens. */
+  transition: transform 440ms cubic-bezier(0.2, 0, 0, 1);
+}
+.stage.at-front { transform: translateX(var(--cover-shift-front)); }
+.stage.at-back { transform: translateX(var(--cover-shift-back)); }
+.book { overflow: hidden; }
+
+/* The spine. Two pages meeting edge to edge read as ONE wide sheet, so mark the
+   seam where they are sewn: a soft gutter either side of a centre stitch line.
+   Hidden while a cover is showing — a closed book has no seam on screen. */
+.stage::after {
+  content: "";
+  position: absolute; top: 0; bottom: 0; left: 50%;
+  width: calc(var(--page-w) * 0.09);
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to right,
+    rgba(26, 26, 46, 0.10),
+    rgba(26, 26, 46, 0.015) 42%,
+    rgba(26, 26, 46, 0.22) 49.5%,
+    rgba(26, 26, 46, 0.22) 50.5%,
+    rgba(26, 26, 46, 0.015) 58%,
+    rgba(26, 26, 46, 0.10)
+  );
+  pointer-events: none;
+  z-index: 26;
+}
+.stage.at-front::after, .stage.at-back::after { display: none; }
+
+/* The page-turn zone: the cell cut by the red margin rule and the topmost blue
+   rule — the only region that turns the page. The square is already drawn by the
+   page's own rules; the zone adds no chrome of its own. */
+.turn {
+  position: absolute; top: 0; z-index: 30;
+  width: var(--margin-left);
+  height: calc(var(--margin-top) + var(--rule-at));  /* down to the first rule */
+  border: 0; background: transparent; padding: 0;
+  cursor: pointer;
+}
+.turn-prev { left: 0; }
+.turn-next { right: 0; }
+.turn.is-hidden { display: none; }
+.turn:hover { background: rgba(37, 99, 235, 0.06); }
+.turn:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+/* --- the ruled page ------------------------------------------------------- */
+.page {
+  position: relative;
+  background-color: #fffdf6;
+  /* TWO image layers, each with its own box:
+       layer 1 = the ruling.  In a real ruled book the lines run the FULL page
+                 width — from one open edge to the other, straight across the red
+                 margin rule (the margin rule is drawn on top of them). Only
+                 vertically are they bounded: they start below the blank top band
+                 and stop at the bottom margin.
+       layer 2 = the paper, filling the whole page. */
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--rule-at) - 1px),
+      var(--rule) calc(var(--rule-at) - 1px),
+      var(--rule) var(--rule-at),
+      transparent var(--rule-at),
+      transparent var(--line)
+    ),
+    linear-gradient(#fffdf6, #fffdf6);
+  background-size: 100% calc(100% - var(--margin-top) - var(--margin-bottom)), 100% 100%;
+  background-position: 0 var(--margin-top), 0 0;
+  background-repeat: no-repeat, no-repeat;
+  background-origin: border-box, border-box;
+  background-clip: border-box, border-box;
+  padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
+  font-size: var(--ink-size);
+  line-height: var(--line);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* The red margin rule runs the FULL height of the page — top edge to bottom edge,
+   as on real ruled paper (measured in the reference: red 121..614, paper
+   120..614, i.e. it meets the bottom exactly). Only the ruling is bounded by the
+   margins; the margin rule is not. */
+.page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--margin-left);
+  width: 1.5px;
+  background: var(--margin-rule);
+  pointer-events: none;
+}
+
+/* The title is WRITTEN ON the first ruled line, like every other line of hand
+   writing — never floating in the blank band above it. 19px Kalam puts its
+   baseline half a pixel past the rule, so it takes a half-pixel nudge. */
+.page h2 {
+  font-size: calc(var(--ink-size) * 1.12);
+  color: var(--accent);
+  line-height: var(--line);
+  position: relative;
+  top: calc(var(--line) * -0.0156);
+}
+.page h1 { font-size: calc(var(--ink-size) * 1.41); line-height: var(--line); color: var(--ink); }
+
+.page ul { list-style: none; padding-left: 0; }
+.page ul li { margin: 0; }
+.page ul li::before { content: "— "; color: var(--accent); }
+
+.page .muted, .page .anchor { font-size: calc(var(--ink-size) * 0.94); color: #8b93a7; }
+
+/* --- title page: no rules, no margin rule --------------------------------- */
+.page-cover {
+  background-image: none;
+  background-color: var(--accent);
+  background-clip: border-box;   /* the cover colour fills the WHOLE page — without
+                                    this it is clipped to the content box, so the
+                                    page padding shows through and the title looks
+                                    flush against the blue edge */
+  color: #fff;
+  padding: calc(var(--page-h) * 0.088) calc(var(--page-w) * 0.085);
+}
+.page-cover::before { display: none; }
+/* StPageFlip sets display:block on the page element itself, so a flex container
+   declared on .page-cover is silently overridden — justify-content then does
+   nothing and the title sits in the corner with the rest of the cover empty.
+   The cover's layout therefore lives on an inner element. */
+.page-cover .cover-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--line) * 0.22);
+  height: 100%;
+}
+.page-cover h1 { color: #fff; font-size: calc(var(--ink-size) * 1.76); top: 0; }
+.page-cover .muted { color: rgba(255, 255, 255, 0.78); }
+.page-cover .anchor { color: rgba(255, 255, 255, 0.6); }
+
+/* --- diagram: plain paper, so the SVG reads cleanly over it --------------- */
+.page-diagram { background-image: none; background-clip: border-box; }
+.page-diagram::before { display: none; }
+.page-diagram .diagram svg { max-width: 100%; height: auto; display: block; }
+
+details summary { cursor: pointer; color: var(--accent); }
+
+/* Hand writing leaves a margin on BOTH sides of the ruled area: it starts to the
+   right of the red rule (never under it) and stops short of the ruling's right
+   end. The ruling itself keeps its full width. */
+.page h2, .page p, .page ul, .page .source, .page details {
+  padding-left: var(--text-gap);
+  padding-right: calc(var(--text-gap) * 1.8);
+}
+
+/* One source entry per ruled band, with a SKIPPED rule between entries, so the
+   seam between two entries is visible instead of running together. */
+.source div { margin: 0 0 var(--line); }
+.source div:last-child { margin-bottom: 0; }
+/* the non-bullet source items (collapsibles, mermaid blocks) read as audit
+   markers, quieter than the prose they sit among */
+.source .src-details, .source .src-mermaid { color: #7b8494; }
+
+/* --- the nested reveal (self-test page) ------------------------------------
+ *
+ * The reveal is the one block of a leaf that can grow without bound — the pass
+ * that writes it has a word budget for `recall` and none for `reveal` — and the
+ * page it sits on is a fixed sheet of paper. So the answer gets a page inside the
+ * page: the outer page stays exactly one page tall (the leaf's page budget does
+ * not move), and the answer paginates inside a smaller sheet lying on it, with
+ * its own finer ruling so it reads as a separate leaf of paper.
+ *
+ * Everything is a ratio of --page-w / --page-h like the rest of this file, so the
+ * sheet holds the same number of lines at any fitted page size — which is what
+ * lets the generator decide the chunk size in Python without knowing the window.
+ */
+:root {
+  /* the nested sheet writes smaller and tighter than the page it sits on */
+  --nested-line: calc(var(--line) * 0.62);
+}
+
+/* StPageFlip sets `display: block` on .page, so the column layout lives on an
+   inner wrapper — the same trap `.page-cover` hit with `.cover-body`. */
+.selftest-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* the prompt keeps its own height; the sheet takes everything left over, which
+   is what makes "bounded to one page" true by construction rather than by care */
+.selftest-body > p { flex: none; }
+
+/* The answer stays hidden until it is asked for — a native disclosure, so the
+   ">" marker, its rotation and the keyboard/AT behaviour come for free. It has to
+   be the flex item that GROWS, so the disclosure's content box needs the flex
+   context too: in current Chrome that box is `::details-content`, and before that
+   pseudo existed the children were direct. Both spellings are declared. */
+.reveal-disclosure {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.reveal-disclosure > summary { flex: none; }
+.reveal-disclosure::details-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* ...and because an author `display` BEATS the UA's own hide-the-content rule in
+   Chrome's pre-`::details-content` implementation, the hiding is re-asserted here.
+   Without this the marker says "closed" while the answer stays on the page. */
+.reveal-disclosure:not([open])::details-content { display: none; }
+.reveal-disclosure:not([open]) > *:not(summary) { display: none; }
+
+.reveal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.reveal-sheet {
+  flex: 1 1 auto;
+  min-height: 0;              /* without this the sheet grows and the pager clips */
+  margin-top: calc(var(--line) * 0.35);
+  /* The page's writing starts a `--text-gap` right of the red margin rule (the
+     rule sits at exactly the content-box edge), and `.page details` already
+     carries that indent — so a sheet drawn at the details' edge would sit ON the
+     rule. This nudges it clear of it. */
+  margin-left: calc(var(--text-gap) * 1.15);
+  position: relative;
+  overflow: hidden;
+  background-color: #fffdf6;
+  /* the sheet's own ruling, finer than the page's — one line per written line */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--nested-line) - 1px),
+    rgba(185, 205, 240, 0.75) calc(var(--nested-line) - 1px),
+    rgba(185, 205, 240, 0.75) var(--nested-line)
+  );
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  border: 1px solid rgba(37, 99, 235, 0.26);
+  border-radius: 3px;
+  /* a real lifted leaf: a crisp contact edge under it, then a soft cast shadow */
+  box-shadow:
+    0 1px 1px rgba(26, 26, 46, 0.10),
+    0 3px 6px -2px rgba(26, 26, 46, 0.18),
+    0 12px 22px -10px rgba(26, 26, 46, 0.42);
+  padding: var(--nested-line) calc(var(--nested-line) * 0.9);
+  font-size: calc(var(--ink-size) * 0.78);
+  line-height: var(--nested-line);
+  color: var(--ink);
+}
+
+/* The generator sets the page count from measured line budgets; this is the belt
+   to that estimate's braces. If a chunk ever overflows anyway — text that packs
+   worse than the average it was charged for — the page SCROLLS rather than
+   clipping. A scrollbar inside a nested page is a blemish; silently losing the
+   end of an answer is the defect this mechanism exists to remove (0010). */
+.reveal-page { display: block; height: 100%; overflow-y: auto; }
+.reveal-page[hidden] { display: none; }
+/* a short fade so the reader sees the answer change, not just the counter */
+.reveal-page:not([hidden]) { animation: reveal-in 160ms ease-out; }
+@keyframes reveal-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The nested text is already inside the sheet's own padding, so it must not take
+   the page's writing indent a second time — `.page p` would otherwise push every
+   nested line in by another `--text-gap`. (Declared after it, at higher
+   specificity, because the two selectors are otherwise equally specific.) */
+.reveal-sheet .reveal-page p,
+.reveal-sheet .reveal-page h3,
+.reveal-sheet .reveal-page ul { padding-left: 0; padding-right: 0; margin: 0; }
+
+.reveal-sheet .reveal-page h3 {
+  font-size: calc(var(--ink-size) * 0.86);
+  color: var(--accent);
+  line-height: var(--nested-line);
+  font-weight: 400;
+}
+.reveal-sheet .reveal-page .reveal-bullet::before {
+  content: "— ";
+  color: var(--accent);
+}
+
+.reveal-pager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--nested-line) * 0.6);
+  margin-top: calc(var(--line) * 0.3);
+  margin-left: calc(var(--text-gap) * 1.15);   /* aligned with the sheet above it */
+}
+.reveal-pager button {
+  font: inherit;
+  font-size: calc(var(--ink-size) * 0.76);
+  line-height: 1;
+  padding: calc(var(--ink-size) * 0.42) calc(var(--ink-size) * 0.6);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.reveal-pager button:hover:not(:disabled) { background: rgba(37, 99, 235, 0.14); }
+.reveal-pager button:disabled {
+  color: #a9b0c0;
+  background: transparent;
+  border-color: rgba(26, 26, 46, 0.12);
+  cursor: default;
+}
+.reveal-pager .pager-count {
+  font-size: calc(var(--ink-size) * 0.76);
+  color: #8b93a7;
+}
+
+/* --- the way back to the map ------------------------------------------------
+ * A notebook is a leaf OF the module map. It carried no route home — its only
+ * hrefs were its own stylesheets — so a reader who arrived from a bookmark, a
+ * shared link or a fresh tab had nothing to click and no way to see where this
+ * leaf sat in the module. Offered on the front cover (first thing seen) and on
+ * the back cover (where the reader ends up). It sits in the cover's own padding,
+ * clear of the centred title block, and StPageFlip leaves clicks on <a> alone
+ * (`clickEventForward`), so it navigates rather than turning the page.
+ */
+.page-cover .cover-nav {
+  position: absolute;
+  top: calc(var(--page-h) * 0.088);
+  left: calc(var(--page-w) * 0.085);
+  font-size: calc(var(--ink-size) * 0.84);
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  padding-bottom: 1px;
+}
+.page-cover .cover-nav:hover {
+  color: #fff;
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+}
+.page-cover .cover-nav.back {
+  top: auto;
+  bottom: calc(var(--page-h) * 0.088);
+}
+
+/* --- pan and zoom a diagram ------------------------------------------------
+ * A dense mermaid flowchart fitted to a 520px page is unreadable, and nothing on
+ * the page said it could be moved (0014). The SVG sits in an inner wrapper and the
+ * whole interaction is one CSS transform on it: drag pans, the wheel zooms about
+ * the cursor, a double-click returns to the fitted view.
+ */
+.page-diagram .diagram {
+  overflow: hidden;
+  touch-action: none;          /* a drag pans the diagram, it does not scroll */
+  cursor: grab;
+}
+.page-diagram .diagram.is-panning { cursor: grabbing; }
+.page-diagram .diagram-zoom {
+  transform-origin: center center;
+  will-change: transform;
+}
+.page-diagram .diagram:hover .diagram-zoom { transition: none; }
+.page-diagram .diagram-hint {
+  margin-top: calc(var(--line) * 0.3);
+  font-size: calc(var(--ink-size) * 0.68);
+  color: #9aa3b2;
+}
