@@ -6,8 +6,8 @@
 ## 1. Purpose and success criteria
 
 A **Revision Atlas** turns a course's markdown into a navigable, offline-capable
-revision surface: a course index of modules, one mind map per module (faithful
-to the source structure), and — at every terminal branch — a compacted leaf
+revision surface: one fused course map (the course name at the root, one faithful
+subtree per module), and — at every terminal branch — a compacted leaf
 (recall block + a mermaid diagram where structure matters + paged notebook +
 self-test prompt + source audit), with every node
 linking back to its source.
@@ -35,10 +35,10 @@ Both open offline on a phone and look portfolio-ready.
 ## 3. Product model
 
 ```
-course atlas
-├── course index map   (title = course name; nodes = modules)
-│     └── module map   (faithful to source; nodes = H2/H3/… and typed sidecar edges)
-│           └── leaf   (recall + diagram + notebook + self-test + source)
+course atlas  (one fused map — `mindmaps/index.html`)
+├── course root          (title = course name)
+│     └── module subtree (faithful to source; nodes = H2/H3/… and typed sidecar edges)
+│           └── leaf     (recall + diagram + notebook + self-test + source)
 ```
 
 The **map** is the index into memory; the **leaf** is the memory itself; the
@@ -47,17 +47,27 @@ leaf is one screen; the notebook is one tap deeper.
 
 ## 4. Data model
 
-### 4.1 Course index — `mindmaps/atlas.yml`
+### 4.1 Course index — `mindmaps/atlas.json`
 
-```yaml
-course: "Machine Learning Engineering"
-repo: "ML-Engineer"
-modules:
-  - id: 05-data-engineering-2
-    title: "Data Engineering II — Quality & Validation"
-    readme: "modules/05-data-engineering-2/README.md"
-    map: "mindmaps/05-data-engineering-2/index.html"
+```json
+{
+  "course": "Machine Learning Engineering",
+  "repo": "ML-Engineer",
+  "index": "mindmaps/index.html",
+  "modules": [
+    {
+      "id": "05-data-engineering-2",
+      "title": "Data Engineering II — Quality & Validation",
+      "readme": "modules/05-data-engineering-2/README.md",
+      "anchor": "mindmaps/index.html#05-data-engineering-2"
+    }
+  ]
+}
 ```
+
+Each module's subtree lives in the one fused map; `anchor` is its entry point. Leaf
+ids are namespaced `<module-id>--<leaf-id>` inside that document, so two modules
+with the same heading text cannot collide.
 
 ### 4.2 Module plan — `mindmaps/<module>/plan.md` (human source)
 
@@ -258,11 +268,11 @@ leaf:
 
 ## 11. Offline & packaging
 
-- **Layer 1** — module map is a single self-contained HTML with inline diagrams
-  (proven, ~350 KB). Guaranteed offline, zero infra.
-- **Layer 2** — PWA precache: per-module "download for offline" prefetches all
+- **Layer 1** — the fused course map is a single self-contained HTML with inline
+  diagrams. Guaranteed offline, zero infra.
+- **Layer 2** — PWA precache: per-course "download for offline" prefetches all
   leaf notebooks (never-opened leaves included), shared assets cached once.
-- **Layer 3** — "revision pack": a per-module single file with notebooks inlined,
+- **Layer 3** — "revision pack": a per-course single file with notebooks inlined,
   for the no-signal-at-all case.
 - Publishing: project Pages per course repo; `.nojekyll` at the published root;
   portfolio (`akshaydev17.github.io`) links to each atlas (or, later, vendors the
@@ -279,7 +289,7 @@ The familiar three-stage shape, with the stages named for what they hold here:
 | **spec** — what must be true | the module README and its sidecars | the course author, before the tool runs | — |
 | **plan** — how it becomes an atlas | `plan.md` + `spec.json`: the faithful tree, and each leaf's checklist (what must survive compaction) | the pipeline, reviewed by a human | **blocking** — Gate 1 structure, Gate 2 checklists |
 | **tasks** — what remains to do | **derived, not authored**: the set of stale leaves | computed from the leaf fingerprints | — |
-| **implementation** | the artifacts: the map and the notebooks | the pipeline | — |
+| **implementation** | the artifacts: the fused map and the notebooks | the pipeline | — |
 | **verify** | the §14 report | machine | coverage · grounding · adherence · freshness · approval |
 
 **No hop drifts silently**, which is the property the whole shape exists for:
@@ -319,14 +329,17 @@ Three deliberate departures from the usual shape:
 
 | skill | invocation | triggers |
 |---|---|---|
-| `revision-atlas` (router) | user-invoked | names the two below; zero context load |
-| `build-course-map` | user-invoked | heavy, batched: extract → plan (2 gates) → generate |
+| `revision-atlas` (router) | user-invoked | names the three below; zero context load |
+| `build-course-map` | user-invoked | course: discover → order → per-module build (delegated) → fused map |
+| `build-module-map` | user-invoked / inner unit | one module: extract → plan (2 gates) → generate |
 | `refresh-stale-leaves` | model-invoked | hash mismatch / "the source changed" / "refresh the atlas" |
 
 `refresh-stale-leaves` is model-invoked so the agent can reach it when it
 *notices* staleness; `build-course-map` stays human-gated (expensive, batched).
-The skill lives globally (`~/.dsh/skills/revision-atlas/`); artifacts live in
-each course repo's `mindmaps/`.
+The skills ship in the plugin bundle (npm); artifacts live in each course repo's
+`mindmaps/`. `build-course-map` is the front door: it delegates each module to
+`build-module-map` (one pipeline, never duplicated) and renders the fused map once
+every module is built.
 
 The **plan (`plan.md`, with its derived `spec.json`) is the common artifact both
 skills share** — the router routes by intent and state, not by duplicating the
@@ -341,13 +354,13 @@ part — the plan can never change silently.
 
 ```
 mindmaps/
-├── atlas.yml
+├── atlas.json            # course index (generated): course name + ordered modules
+├── index.html            # THE fused course map — one file, one subtree per module
 ├── assets/               # font(s), flip JS, theme CSS
 ├── og/                   # PNG thumbnails
 └── <module-slug>/
     ├── plan.md            # human source of truth (approved)
     ├── spec.json           # derived machine contract (generated)
-    ├── index.html        # self-contained module map
     └── leaves/<leaf-id>/
         ├── notebook.html
         ├── diagram.svg   # rendered mermaid
@@ -363,6 +376,14 @@ source-anchor fragment), **never a position**. A positional name (`leaf-003`)
 shifts the moment a section is inserted above it, and every link, bookmark and
 `refresh-stale-leaves` lookup then quietly resolves to a different leaf — the
 directory name has to be a function of the thing, not of its index.
+
+Inside the one fused map, a leaf's id is **namespaced by its module** —
+`<module-slug>--<leaf-id>` — because the document now spans every module, and two
+modules with the same heading would otherwise collide (the 0008 duplicate-title
+bug at course scale). The same namespaced id is the fragment in every map → notebook
+link and every notebook's `← module map` back-link (which resolves from
+`leaves/<leaf-id>/notebook.html` up to `mindmaps/index.html`, so it carries one
+extra `../` level than a per-module map did).
 
 The map is the navigation surface: `index.html` links each leaf to its own
 `leaves/<leaf-id>/notebook.html`, and its source anchors are relative paths that
@@ -445,8 +466,8 @@ has moved on since it was built.
    block, and linked markdown accounted for). Script derives `spec.json`.
 3. Leaf plan: per-leaf `checklist` drafted from the section content.
    **Gate 2 — human approves checklists** (information captured to the fullest).
-4. Renderer: course index + module map (markmap, inline diagrams) — runs against
-   the frozen plan.
+4. Renderer: the fused course map (course root + module subtrees; markmap, inline
+   diagrams, `<module-slug>--<leaf-id>` namespacing) — runs against the frozen plan.
 5. Leaf generator: diagram (mermaid per §8) + recall/prompt/reveal +
    source node — runs against the frozen checklist.
 6. Notebook generator: paged flip template + shared assets.

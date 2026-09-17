@@ -13,6 +13,7 @@ residue is flagged, never guessed):
   task-state-*.md (own TOC or >1 H1)-> aggregator
   task-state-*.md                   -> framework-domain
   *worked-example*.md               -> worked-example
+  linked, nothing more specific     -> sidecar   (SPEC §5: standalone doc cited by a section)
   everything else                   -> needs_review  (0002 / human types it)
 
 These file-level hints map up to SPEC §5 node kinds in 0002: a debate-for and its
@@ -184,6 +185,9 @@ def extract(root: "str | Path") -> dict:
     seeds = [rel for rel in md_files if len(rel.parts) == 1 and _noise(rel) is None]
     in_scope: List[Path] = []
     seen: set = set()
+    # posix -> (citing file, line): a plain standalone doc reached through the link
+    # graph is a `sidecar` (SPEC §5), and its first citation is its attachment point.
+    cited_by: Dict[str, tuple] = {}
     queue = list(seeds)
     while queue:
         rel = queue.pop(0)
@@ -205,8 +209,11 @@ def extract(root: "str | Path") -> dict:
             if not cand.exists() or not _inside(cand):
                 continue                           # outside the module: not ours
             crev = cand.relative_to(root)
-            if _noise(crev) is None and crev.as_posix() not in seen:
-                queue.append(crev)
+            cposix = crev.as_posix()
+            if _noise(crev) is None:
+                cited_by.setdefault(cposix, (posix, link["line"]))
+                if cposix not in seen:
+                    queue.append(crev)
 
     for rel in in_scope:
         posix = rel.as_posix()
@@ -220,6 +227,12 @@ def extract(root: "str | Path") -> dict:
             if kind is not None:
                 files.append(
                     {"path": posix, "status": "classified", "kind": kind, "reason": f"typed: {kind}"}
+                )
+            elif posix in cited_by:
+                src, line = cited_by[posix]
+                files.append(
+                    {"path": posix, "status": "classified", "kind": "sidecar",
+                     "reason": f"linked from {src}:{line}"}
                 )
             else:
                 files.append(

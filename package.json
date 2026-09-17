@@ -1,7 +1,7 @@
 {
   "name": "dsh-revision-atlas",
   "version": "0.1.0",
-  "description": "DeepSeek Harness skill: build, rebuild and refresh a course module's revision atlas \u2014 a mind map whose leaves are paged notebooks, extracted faithfully from the module's markdown with machine-checked coverage and a human-gated plan.",
+  "description": "DeepSeek Harness skill: build, rebuild and refresh a course's revision atlas \u2014 one fused mind map (course root to module subtrees) whose leaves are paged notebooks, extracted faithfully from each module's markdown with machine-checked coverage and a human-gated plan.",
   "license": "MIT",
   "type": "module",
   "main": "index.js",

@@ -93,7 +93,8 @@ def _notebook_html(node: dict, leaves_prefix: "Optional[str]") -> str:
 
 
 def _content_html(
-    node: dict, leaves_prefix: "Optional[str]" = None, source_base: str = ""
+    node: dict, leaves_prefix: "Optional[str]" = None, source_base: str = "",
+    id_prefix: str = "", root_id: "Optional[str]" = None,
 ) -> str:
     title = _esc(node["title"])
     kind = node.get("kind")
@@ -101,7 +102,13 @@ def _content_html(
     # map can be linked INTO (`index.html#<leaf-id>`) without changing the layout
     # the map would otherwise draw. A block wrapper here does alter it — markmap's
     # own CSS keys off its inner div.
-    nid = _esc(node.get("id", ""))
+    #
+    # In the fused course map every id is namespaced `<module-slug>--<leaf-id>` so
+    # two modules with the same heading cannot collide in the one document (0008 at
+    # course scale). The module's OWN root is the exception: it is tagged with the
+    # bare `slug`, because that is the anchor a course index / portfolio links to.
+    raw_id = root_id if root_id is not None else f"{id_prefix}{node.get('id', '')}"
+    nid = _esc(raw_id)
     if kind in ("module", "section"):
         inner = f'<b data-atlas-node="{nid}">{title}</b>'
     else:
@@ -123,7 +130,8 @@ def _content_html(
 
 
 def build_markmap_tree(
-    spec: dict, leaves_prefix: "Optional[str]" = None, source_base: str = ""
+    spec: dict, leaves_prefix: "Optional[str]" = None, source_base: str = "",
+    id_prefix: str = "", root_id_override: "Optional[str]" = None,
 ) -> dict:
     """The module's STRUCTURE — and nothing else.
 
@@ -140,8 +148,11 @@ def build_markmap_tree(
     module. The map's own bulk is the vendored d3 + markmap libraries (~300 KB,
     constant), so that is a saving rather than the main event.
     """
-    def convert(node: dict) -> dict:
-        mn = {"content": _content_html(node, leaves_prefix, source_base)}
+    def convert(node: dict, is_root: bool = False) -> dict:
+        root_id = root_id_override if is_root else None
+        mn = {"content": _content_html(
+            node, leaves_prefix, source_base, id_prefix=id_prefix, root_id=root_id,
+        )}
         children: List[dict] = []
         for b in (node.get("branches") or {}).values():
             children.append(convert(b))
@@ -151,7 +162,7 @@ def build_markmap_tree(
             mn["children"] = children
         return mn
 
-    return convert(spec["root"])
+    return convert(spec["root"], is_root=True)
 
 
 def _read_asset(name: str) -> str:
@@ -159,21 +170,26 @@ def _read_asset(name: str) -> str:
 
 
 def render_map(
-    spec: dict, leaves_prefix: "Optional[str]" = None, source_base: str = ""
+    spec: dict, leaves_prefix: "Optional[str]" = None, source_base: str = "",
+    id_prefix: str = "",
 ) -> str:
-    """The self-contained module map.
+    """The self-contained module map (a course of one module).
 
     `leaves_prefix` (e.g. `leaves`) turns each leaf into a link to its notebook;
     `source_base` is the relative path from the map's own directory back to the
-    module's markdown, so every source anchor resolves from where the map sits
-    (SPEC §13 puts `mindmaps/<slug>/` beside `modules/<slug>/`). Both are the
-    caller's to know — `build` derives them from the real layout.
+    module's markdown, so every source anchor resolves from where the map sits.
+    `id_prefix` namespaces every `data-atlas-node` id — the fused renderer passes
+    `<module-slug>--` so two modules with the same heading cannot collide.
     """
-    tree = build_markmap_tree(spec, leaves_prefix, source_base)
+    tree = build_markmap_tree(spec, leaves_prefix, source_base, id_prefix=id_prefix)
     opts = {"initialExpandLevel": 2, "duration": 300, "maxWidth": 800}
+    return _render_html(tree, spec["module"], opts)
+
+
+def _render_html(tree: dict, title: str, opts: dict) -> str:
     tree_json = json.dumps(tree).replace("<", "\\u003c")
     opts_json = json.dumps(opts)
-    title = _esc(spec["module"])
+    title = _esc(title)
 
     head = f"""<!doctype html>
 <html>
@@ -228,7 +244,7 @@ html {{ font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 
         "  };\n"
         "  const depth = wanted && isId(wanted) ? depthOf(wanted) : -1;\n"
         "  // markmap expands levels 0..N-1, so revealing a node AT depth d needs d+1\n"
-        "  const opts = depth >= 0 ? { ...base, initialExpandLevel: Math.max(2, depth + 1) } : base;\n"
+        "  const opts = depth >= 0 ? { ...base, initialExpandLevel: Math.max(base.initialExpandLevel, depth + 1) } : base;\n"
         "  const mm = markmap.Markmap.create('svg#mindmap', opts, null);\n"
         "  window.mm = mm;\n"
         "  const focus = () => {\n"
@@ -258,6 +274,42 @@ html {{ font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 
     )
 
     return head + scripts
+
+
+def build_course_tree(course_name: str, modules: "List[dict]") -> dict:
+    """Compose module subtrees under a course root (SPEC §3 — the fused map).
+
+    `modules` is a list of `{"spec": …, "slug": …, "source_base": …}`. Each
+    module's root is tagged with its bare `slug` (the anchor a course index or a
+    portfolio page deep-links to); every descendant is tagged `<slug>--<id>` so two
+    modules with the same heading cannot collide in the one document (the 0008
+    duplicate-title bug, now at course scale). A leaf's notebook link resolves to
+    `<slug>/leaves/<leaf-id>/notebook.html`, so `leaves_prefix` carries the slug.
+    """
+    children: List[dict] = []
+    for m in modules:
+        spec = m["spec"]
+        slug = m["slug"]
+        children.append(build_markmap_tree(
+            spec,
+            leaves_prefix=f"{slug}/leaves",
+            source_base=m.get("source_base", ""),
+            id_prefix=f"{slug}--",
+            root_id_override=slug,
+        ))
+    return {"content": _esc(course_name), "children": children}
+
+
+def render_course_map(course_name: str, modules: "List[dict]") -> str:
+    """The one fused course map: course root → module subtrees → leaves.
+
+    Rendered collapsed to module level (`initialExpandLevel: 1`) so the fused map
+    *is* the course index at rest; a reader expands a module to reveal its faithful
+    H2/H3 tree. Contrast `render_map` (a course of one module, base level 2).
+    """
+    tree = build_course_tree(course_name, modules)
+    opts = {"initialExpandLevel": 1, "duration": 300, "maxWidth": 800}
+    return _render_html(tree, course_name, opts)
 
 
 def main(argv: "List[str] | None" = None) -> int:

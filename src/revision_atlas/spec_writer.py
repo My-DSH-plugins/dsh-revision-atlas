@@ -92,7 +92,7 @@ def _coverage(inv: dict, root: dict) -> dict:
 # it. Heading nodes (`module`, `section`) own their intro range even when they
 # have children.
 LEAF_KINDS = frozenset(
-    {"module", "section", "worked-example", "needs-review", "debate-for", "debate-against", "framework-domain"}
+    {"module", "section", "worked-example", "needs-review", "debate-for", "debate-against", "framework-domain", "sidecar"}
 )
 
 
@@ -506,6 +506,7 @@ def build_structure(
     domains: List[dict] = []
     aggregator: Optional[dict] = None
     worked: List[dict] = []
+    plain: List[dict] = []
     for f in sidecars:
         k = f["kind"]
         if k in ("debate-for", "debate-against"):
@@ -517,6 +518,8 @@ def build_structure(
             aggregator = f
         elif k == "worked-example":
             worked.append(f)
+        elif k == "sidecar":
+            plain.append(f)
 
     # README link targets -> first line that cites them (attachment point).
     link_line: Dict[str, int] = {}
@@ -557,6 +560,20 @@ def build_structure(
 
     for f in worked:
         attach(_leaf_node(f, inv["headings"], "worked-example"), f["path"].rsplit("/", 1)[-1])
+
+    # A plain sidecar (SPEC §5: a standalone doc cited by a section, with no more
+    # specific convention) mirrors its OWN heading tree — its H1 is the sidecar
+    # node, its H2/H3 are sections — and attaches to the README section whose link
+    # line cites it (that line is its evidence). Flattening a rich sidecar into one
+    # leaf would drop its internal structure; the README is not the only doc with a
+    # faithful outline.
+    for f in sorted(plain, key=lambda x: x["path"]):
+        sub, _ = _build_heading_tree(inv["headings"].get(f["path"], []), f["path"])
+        if sub is None:
+            sub = _leaf_node(f, inv["headings"], "sidecar")
+        else:
+            sub["kind"] = "sidecar"
+        attach(sub, f["path"].rsplit("/", 1)[-1])
 
     # Framework matrix: one node owning every task-state file; the aggregator is
     # the canonical source. Attach at root (these files aren't linked from README).

@@ -14,10 +14,13 @@ class TestAssemble(unittest.TestCase):
     def test_the_bundle_runs_the_pipeline_from_its_own_tools(self):
         with tempfile.TemporaryDirectory() as td:
             written = assemble(td)
-            skill = Path(td) / "revision-atlas"
+            skill = Path(td) / "build-module-map"
             self.assertTrue((skill / "SKILL.md").exists())
             self.assertTrue((skill / "passes" / "semantic-pass.md").exists())
             self.assertTrue((skill / "tools" / "revision_atlas" / "build.py").exists())
+            # the four-skill surface: router + course + module + refresh
+            for name in ("revision-atlas", "build-course-map", "refresh-stale-leaves"):
+                self.assertTrue((Path(td) / name / "SKILL.md").exists(), name)
             # the SKILL.md must use <base>, not a dev-checkout path
             body = (skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn("<base>/tools", body)
@@ -55,7 +58,7 @@ class TestToolsInSync(unittest.TestCase):
 
     def test_the_bundle_tools_match_src(self):
         src = _REPO / "src" / "revision_atlas"
-        tools = _REPO / "skills" / "revision-atlas" / "tools" / "revision_atlas"
+        tools = _REPO / "skills" / "build-module-map" / "tools" / "revision_atlas"
         a, b = self._files(src), self._files(tools)
         self.assertEqual(
             set(a), set(b),

@@ -8,9 +8,31 @@ artifacts at the leaves. This glossary holds the words the design documents
 ## Language
 
 **Atlas**:
-The whole artifact set for one course: a course index map, one module map per
-module, and the leaf notebooks/diagrams under them.
+The whole artifact set for one course: one fused course map, the course index,
+and the leaf notebooks/diagrams under each module.
 _Avoid_: mind map app, site, viewer
+
+**Course**:
+The level above a module — the directory that *contains* the modules. A course is
+recognised by **structure, never by the word `modules/`**: it holds a modules
+directory, which is "a directory whose children are directories each containing a
+README". Beside that directory a course typically carries a `syllabus.md` and
+other files, which are not themselves modules.
+
+A course has a **name** and an **order**, both derived, never invented:
+
+- *Name* — the syllabus's `**Course title:**` field, else the course directory's
+  own name.
+- *Order* — the syllabus's sequential `M# · Title` headings, else the numeric
+  prefix on each module name, else an arbitrary order that the human approves
+  before any module is built.
+
+One course renders as **one fused course map** — `mindmaps/index.html`, course
+root → one subtree per module → leaves, with `<module>--<leaf-id>` namespacing so
+two modules' identical headings cannot collide — plus the course index
+(`mindmaps/atlas.json`). A course is what `build-course-map` builds; a single
+module is what `build-module-map` builds.
+_Avoid_: repo, folder, subject, textbook
 
 **Module**:
 A unit of study — a directory containing one README plus zero or more sidecar
@@ -88,8 +110,10 @@ that cites it, not copied per module.
 _Avoid_: cross-link, common file
 
 **Course index**:
-The top-level map whose nodes are the modules.
-_Avoid_: landing map, root map
+The machine index for one course — `mindmaps/atlas.json`: the course name, its
+`repo`, and the ordered modules (each with id, title, readme, and its anchor into
+the fused map). Data, not a map: the *map* is the fused course map.
+_Avoid_: landing map, root map, TOC
 
 **Closure**:
 The invariant that every corpus file is classified exactly once as

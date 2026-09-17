@@ -35,8 +35,8 @@ def assemble(target: str, skills_dir: str = "skills") -> List[Path]:
         dst = root / skill.name
         shutil.copytree(skill, dst, dirs_exist_ok=True, ignore=_IGNORE)
         written.append(dst)
-    # the pipeline rides along with the entry skill
-    tools = root / "revision-atlas" / "tools" / "revision_atlas"
+    # the pipeline rides along with the pipeline skill (`build-module-map`)
+    tools = root / "build-module-map" / "tools" / "revision_atlas"
     shutil.copytree(
         _REPO / "src" / "revision_atlas", tools, dirs_exist_ok=True, ignore=_IGNORE
     )
@@ -47,12 +47,12 @@ def assemble(target: str, skills_dir: str = "skills") -> List[Path]:
 def sync_tools(dst: "Optional[str]" = None) -> Path:
     """Copy `src/revision_atlas` into the skill bundle's `tools/`.
 
-    `skills/revision-atlas/tools/` is the plugin's ONE generated directory — it is
+    `skills/build-module-map/tools/` is the plugin's ONE generated directory — it is
     gitignored, so `src/` stays the only source of truth and the bundle cannot drift
     by disagreement, only by forgetting to re-sync. This is what the `prepack` script
     and the pre-`dsh plugin add <link>` step both run.
     """
-    dest = Path(dst) if dst else _REPO / "skills" / "revision-atlas" / "tools" / "revision_atlas"
+    dest = Path(dst) if dst else _REPO / "skills" / "build-module-map" / "tools" / "revision_atlas"
     shutil.copytree(_REPO / "src" / "revision_atlas", dest, dirs_exist_ok=True, ignore=_IGNORE)
     return dest
 
@@ -73,7 +73,7 @@ def main(argv: "Optional[List[str]]" = None) -> int:
         print(f"assembled {path}")
     print()
     print("Install as plain skills, or point a plugin's resourceBase at it:")
-    print(f"  ~/.dsh/skills/  <-  {Path(args.target) / 'revision-atlas'}")
+    print(f"  ~/.dsh/skills/  <-  {Path(args.target) / 'build-module-map'}")
     return 0
 
 

@@ -103,7 +103,7 @@ def _cover_nav(map_href: str, back: bool = False) -> str:
     if not map_href:
         return ""
     cls = "cover-nav back" if back else "cover-nav"
-    return f'<a class="{cls}" href="{_esc(map_href)}">&larr; module map</a>'
+    return f'<a class="{cls}" href="{_esc(map_href)}">&larr; course map</a>'
 
 
 def _cover_html(node: dict, map_href: str = "") -> str:
@@ -323,13 +323,13 @@ def _asset_version() -> str:
 def render_notebook(
     node: dict,
     assets_rel: str = "../../../assets",
-    map_href: str = "../../index.html",
+    map_href: str = "../../../index.html",
 ) -> str:
     """Render one leaf to a self-contained flip-notebook HTML string.
 
-    `map_href` is the path back to the module map — the leaf's parent surface. It
-    defaults to the §13 depth (`leaves/<leaf-id>/notebook.html` → `../../`), and
-    an empty string drops the link.
+    `map_href` is the path back to the fused course map — the leaf's parent surface.
+    It defaults to the §13 depth (`leaves/<leaf-id>/notebook.html` → `../../../`
+    up to `mindmaps/index.html`), and an empty string drops the link.
     """
     title = _esc(node["title"])
     ver = _asset_version()
@@ -574,9 +574,12 @@ def generate_all(inv: dict, spec: dict, out_root: str) -> List[Path]:
         leaf_dir = module_dir / "leaves" / leaf_dir_id(leaf)
         leaf_dir.mkdir(parents=True, exist_ok=True)
         out = leaf_dir / "notebook.html"
-        # the way back lands on THIS leaf, not the top of the map
+        # the way back lands on THIS leaf, not the top of the map. The fragment is
+        # namespaced <module-slug>--<leaf-id> so it resolves in the fused course map;
+        # the module's OWN root is tagged with the bare slug (its course anchor).
+        frag = module_slug if leaf.get("kind") == "module" else f"{module_slug}--{leaf['id']}"
         out.write_text(
-            render_notebook(leaf, map_href=f"../../index.html#{leaf['id']}"),
+            render_notebook(leaf, map_href=f"../../../index.html#{frag}"),
             encoding="utf-8",
         )
         written.append(out)

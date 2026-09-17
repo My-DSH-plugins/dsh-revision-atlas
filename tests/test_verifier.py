@@ -252,15 +252,18 @@ class TestBuildPipeline(unittest.TestCase):
             self.assertTrue((root / "mindmaps" / root.name / "plan.md").exists())
             self.assertTrue((root / "mindmaps" / root.name / "spec.json").exists())
             self.assertTrue((root / "mindmaps" / "assets" / "notebook.css").exists())
-            # §13: the map belongs to the artifact tree — one build writes it,
-            # it is not a second command the caller has to remember.
-            map_html = root / "mindmaps" / root.name / "index.html"
+            # the map is the fused course map at the artifacts root, rendered by
+            # the course layer once the module is built
+            from revision_atlas.course import render_course
+            render_course(root.name, [root], str(root / "mindmaps"))
+            map_html = root / "mindmaps" / "index.html"
             self.assertTrue(map_html.exists())
             self.assertIn("<svg", map_html.read_text(encoding="utf-8"))
 
     def _built(self, td: str):
         """Build one module in the §13 layout: mindmaps/ beside modules/."""
         from revision_atlas.build import build
+        from revision_atlas.course import render_course
 
         base = Path(td)
         root = base / "modules" / "demo"
@@ -268,6 +271,7 @@ class TestBuildPipeline(unittest.TestCase):
         (root / "README.md").write_text(READ_ME, encoding="utf-8")
         build(str(root), str(base / "mindmaps"), approve=["all"])   # the human gate
         spec, written, rep = build(str(root), str(base / "mindmaps"))
+        render_course("Demo", [root], str(base / "mindmaps"))
         return base, root, spec, rep
 
     def test_the_map_links_every_leaf_and_every_link_resolves(self):
@@ -278,15 +282,16 @@ class TestBuildPipeline(unittest.TestCase):
             base, root, spec, rep = self._built(td)
             self.assertTrue(rep.ok(), rep.render())
             module_out = base / "mindmaps" / "demo"
-            map_html = module_out / "index.html"
+            map_html = base / "mindmaps" / "index.html"
             hrefs = set(
                 re.findall(r'href=\\?"([^"\\]+)\\?"', map_html.read_text(encoding="utf-8"))
             )
 
             from revision_atlas.spec_writer import owns_content
 
+            # in the fused map a leaf's notebook link carries the module slug
             for leaf in [n for n in iter_leaves(spec["root"]) if owns_content(n)]:
-                self.assertIn(f"leaves/{leaf['id']}/notebook.html", hrefs)
+                self.assertIn(f"demo/leaves/{leaf['id']}/notebook.html", hrefs)
 
             for href in hrefs:
                 target = map_html.parent / href.split("#")[0].split("?")[0]
@@ -320,10 +325,10 @@ class TestBuildPipeline(unittest.TestCase):
     def test_a_broken_map_link_is_a_failure(self):
         with tempfile.TemporaryDirectory() as td:
             base, root, spec, rep = self._built(td)
-            map_html = base / "mindmaps" / "demo" / "index.html"
+            map_html = base / "mindmaps" / "index.html"
             map_html.write_text(
                 map_html.read_text(encoding="utf-8").replace(
-                    "leaves/section-one/notebook.html", "leaves/nope/notebook.html"
+                    "demo/leaves/section-one/notebook.html", "demo/leaves/nope/notebook.html"
                 ),
                 encoding="utf-8",
             )
@@ -342,6 +347,36 @@ class TestBuildPipeline(unittest.TestCase):
             self.assertTrue(rep2.ok(), rep2.render())
             self.assertTrue(any(f.check == "links" for f in rep2.needs_review))
             self.assertFalse([f for f in rep2.failures if f.check == "links"])
+
+    def test_a_plain_linked_sidecar_is_classified_and_mirrored(self):
+        # A standalone doc linked from the README with no special filename convention
+        # is a `sidecar` (SPEC §5), not an unclassified closure failure — and its own
+        # heading tree is mirrored, not flattened into one empty leaf.
+        from revision_atlas.build import build
+        from revision_atlas.extractor import extract
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(
+                "# Mod\n\n## Section one\n\nSee [the companion](companion.md).\n\n"
+                "- a bullet\n",
+                encoding="utf-8",
+            )
+            (root / "companion.md").write_text(
+                "# Companion\n\n## Sub A\n\nprose a\n\n## Sub B\n\nprose b\n",
+                encoding="utf-8",
+            )
+            inv = extract(str(root))
+            kinds = {f["path"]: f.get("kind") for f in inv["files"]}
+            self.assertEqual(kinds["companion.md"], "sidecar")
+            self.assertFalse([f for f in inv["files"] if f["status"] == "needs_review"])
+            build(str(root), str(root / "mindmaps"), approve=["all"])
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertTrue(rep.ok(), rep.render())
+            nodes = [n for n in iter_leaves(spec["root"])]
+            sidecar = next(n for n in nodes if n.get("kind") == "sidecar")
+            self.assertEqual([c["title"] for c in sidecar["children"]], ["Sub A", "Sub B"])
+            self.assertIsNotNone(sidecar.get("evidence"), "sidecar lacks its link-line evidence")
 
     def test_build_merges_the_agent_passes(self):
         from revision_atlas.build import build
@@ -459,7 +494,10 @@ class TestEmptyModule(unittest.TestCase):
             self.assertEqual(written, [])
             module_out = root / "mindmaps" / root.name
             self.assertTrue((module_out / "spec.json").exists())
-            self.assertTrue((module_out / "index.html").exists())
+            # the map is course-level, rendered even for a module with no leaves
+            from revision_atlas.course import render_course
+            render_course(root.name, [root], str(root / "mindmaps"))
+            self.assertTrue((root / "mindmaps" / "index.html").exists())
 
 
 class TestRevealBudget(unittest.TestCase):

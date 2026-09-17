@@ -29,7 +29,6 @@ from .extractor import extract
 from .leaf_generator import annotate_artifacts
 from .mermaid_render import render_leaf_mermaids
 from .notebook_generator import generate_all
-from .renderer import render_map, source_base_for
 from .spec_writer import approval_state, build_structure, render_plan
 from .verifier import verify
 
@@ -98,7 +97,6 @@ def build(
     recall: "Optional[dict]" = None,
     mermaid: "Optional[dict]" = None,
     critic: "Optional[dict]" = None,
-    source_base: "Optional[str]" = None,
     approve: "Optional[List[str]]" = None,
     approved_by: "Optional[str]" = None,
 ):
@@ -156,16 +154,6 @@ def build(
     annotate_artifacts(inv, root)
     render_leaf_mermaids(inv, root)
     written = generate_all(inv, spec, out_root)
-
-    # §13: the module dir holds the map, the review plan, and the spec
-    (module_out / "index.html").write_text(
-        render_map(
-            spec,
-            leaves_prefix="leaves",
-            source_base=source_base_for(module_dir, module_out, source_base),
-        ),
-        encoding="utf-8",
-    )
 
     rep = verify(inv, spec, out_root, critic=critic)
     return spec, written, rep
@@ -291,12 +279,6 @@ def main(argv: "List[str] | None" = None) -> int:
     ap.add_argument("--recall", help="JSON: leaf id -> {recall,prompt,reveal}")
     ap.add_argument("--mermaid", help="JSON: leaf id -> [.mmd sources]")
     ap.add_argument("--critic", help="JSON: leaf id -> [{detail}]")
-    ap.add_argument(
-        "--source-base",
-        default=None,
-        help="path from the map back to the module markdown (default: derived "
-        "from the layout; set it if the artifact tree ships without the source)",
-    )
     ap.add_argument("--json", help="also write the verification report here")
     ap.add_argument(
         "--approve",
@@ -320,7 +302,6 @@ def main(argv: "List[str] | None" = None) -> int:
         recall=_load(args.recall),
         mermaid=_load(args.mermaid),
         critic=_load(args.critic),
-        source_base=args.source_base,
         approve=args.approve,
         approved_by=args.by,
     )
@@ -332,7 +313,7 @@ def main(argv: "List[str] | None" = None) -> int:
     # display title — `spec["module"]` is the title and would name a dir that
     # does not exist
     module_out = Path(args.mindmaps) / Path(args.module_dir.rstrip("/")).name
-    print(f"generated {len(written)} notebooks + index.html under {module_out}")
+    print(f"generated {len(written)} notebooks under {module_out}")
     print()
     print(rep.render())
     if args.json:

@@ -373,7 +373,13 @@ def _check_links(module_dir: Path, out_root: Path, leaves: List[dict], rep: Repo
     a bare copy of `mindmaps/` does not — so that is a deployment note, not a
     broken build.
     """
-    pages = [module_dir / "index.html"] + [
+    # The map is the fused course map at the artifacts ROOT (SPEC §13: one
+    # `mindmaps/index.html` whose module subtrees are the module maps). It is
+    # rendered by `render_course` after every module is built, so during a
+    # per-module build it may not exist yet — the loop skips a missing page rather
+    # than flagging "could not test" as "wrong" (§14).
+    map_path = out_root / "index.html"
+    pages = [map_path] + [
         _leaf_artifact(module_dir, leaf) for leaf in leaves
     ]
     root = out_root.resolve()
@@ -393,6 +399,12 @@ def _check_links(module_dir: Path, out_root: Path, leaves: List[dict], rep: Repo
             if not path or (here / path).exists():
                 continue
             target = (here / path).resolve()
+            if target == map_path.resolve() and not map_path.exists():
+                # a notebook links back to the fused course map, which `render_course`
+                # writes only after every module is built — "could not test" here,
+                # not "wrong" (§14). Once the map exists, this link is asserted like
+                # any other.
+                continue
             inside = str(target).startswith(str(root) + os.sep)
             label = page.name if page.parent == module_dir else f"{page.parent.name}/{page.name}"
             rep.findings.append(Finding(

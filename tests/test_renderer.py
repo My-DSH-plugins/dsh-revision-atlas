@@ -108,6 +108,7 @@ class TestMapIsLinkableInto(unittest.TestCase):
         import tempfile
 
         from revision_atlas.build import build
+        from revision_atlas.course import render_course
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "modules" / "demo"
@@ -123,25 +124,31 @@ class TestMapIsLinkableInto(unittest.TestCase):
             build(str(root), str(Path(td) / "mindmaps"), approve=["all"], **passes)
             spec, written, rep = build(str(root), str(Path(td) / "mindmaps"), **passes)
             assert rep.ok(), rep.render()
-            module_out = Path(td) / "mindmaps" / "demo"
+            # the map is the fused course map, rendered by the course layer even
+            # for a course of one module
+            render_course("Demo", [root], str(Path(td) / "mindmaps"))
+            mindmaps = Path(td) / "mindmaps"
             # read everything while the temp tree still exists — the files are gone
             # by the time this returns
             return {
-                "map": (module_out / "index.html").read_text(encoding="utf-8"),
-                "leaf_b": (module_out / "leaves" / "b" / "notebook.html").read_text(encoding="utf-8"),
+                "map": (mindmaps / "index.html").read_text(encoding="utf-8"),
+                "leaf_b": (mindmaps / "demo" / "leaves" / "b" / "notebook.html").read_text(encoding="utf-8"),
             }
 
     def test_every_node_is_tagged_with_an_id(self):
         html = self._map()["map"]
-        self.assertIn('data-atlas-node=\\"m\\"', html)
-        self.assertIn('data-atlas-node=\\"a\\"', html)
-        self.assertIn('data-atlas-node=\\"b\\"', html)
+        # the module root is tagged with its bare slug (the course anchor); every
+        # descendant is namespaced <slug>--<id> so identical headings in two
+        # modules cannot collide in the one fused document
+        self.assertIn('data-atlas-node=\\"demo\\"', html)
+        self.assertIn('data-atlas-node=\\"demo--a\\"', html)
+        self.assertIn('data-atlas-node=\\"demo--b\\"', html)
 
     def test_the_map_reads_the_hash_and_expands_to_reach_it(self):
         html = self._map()["map"]
         self.assertIn("location.hash", html)
         # revealing a node AT depth d needs the levels above it expanded
-        self.assertIn("initialExpandLevel: Math.max(2, depth + 1)", html)
+        self.assertIn("initialExpandLevel: Math.max(base.initialExpandLevel, depth + 1)", html)
 
     def test_a_notebook_links_back_to_its_own_node(self):
-        self.assertIn('href="../../index.html#b"', self._map()["leaf_b"])
+        self.assertIn('href="../../../index.html#demo--b"', self._map()["leaf_b"])

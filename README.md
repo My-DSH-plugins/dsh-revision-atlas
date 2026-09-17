@@ -52,7 +52,7 @@ course atlas
 
 DSH already loads a plain `SKILL.md` from `~/.dsh/skills`. That is enough for a
 pure-instructions skill, and it is **not** the convenient choice here, because the
-`revision-atlas` skill is not instructions-only:
+`build-module-map` skill is not instructions-only:
 
 - it ships a **Python pipeline** (extract → plan → generate → verify) plus four
   **pass instructions** that run as fresh subagents;
@@ -67,11 +67,14 @@ A plugin provides all three via `dsh plugin add` and `ctx.skills.registerProvide
 
 | skill | invocation | what it does |
 |---|---|---|
-| `revision-atlas` | user-invoked | build / rebuild / approve a module's atlas — spec → plan → implementation |
+| `revision-atlas` | user-invoked | router — names the three below; no pipeline of its own |
+| `build-course-map` | user-invoked | discover + order modules, build each, render the ONE fused course map |
+| `build-module-map` | user-invoked | build / rebuild / approve a single module's map — spec → plan → implementation |
 | `refresh-stale-leaves` | model-invoked | regenerate only the leaves whose source moved |
 
-The `revision-atlas` skill carries four pass instructions (`semantic`, `recall`,
-`mermaid`, `verifier-critic`) and the standard-library Python package under `tools/`.
+The `build-module-map` skill carries four pass instructions (`semantic`, `recall`,
+`mermaid`, `verifier-critic`) and the standard-library Python package under `tools/`;
+the other skills reach it through that bundle.
 
 ## Install
 
@@ -84,8 +87,8 @@ hosts.
 dsh plugin --profile <profile> add dsh-revision-atlas
 ```
 
-Restart `dsh web` (or refresh), then type `/revision-atlas` in the composer or pick it
-from the skill picker.
+Restart `dsh web` (or refresh), then type `/revision-atlas` (the router) in the
+composer or pick it from the skill picker.
 
 ### Claude Code
 

@@ -6,8 +6,8 @@
  * being copied into ~/.dsh/skills by hand. The provider re-reads the skill files on
  * every discovery/load, so editing a SKILL.md body needs no restart.
  *
- * The `revision-atlas` skill drives the Python pipeline it ships under
- * `skills/revision-atlas/tools/`, invoked as
+ * The `build-module-map` skill ships the Python pipeline under
+ * `skills/build-module-map/tools/`, invoked as
  * `PYTHONPATH=<base>/tools python3 -m revision_atlas…` — `<base>` is the skill's own
  * directory, announced by the host as `<skill_resources>`.
  *
