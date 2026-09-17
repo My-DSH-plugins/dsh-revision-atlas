@@ -21,6 +21,7 @@ Tracer-bullet tickets, worked blockers-first (extractor → everything else).
 | [0015](0015-coverage-false-miss-on-short-labels.md) | Coverage false-misses a short-labelled collapsible | — | — |
 | [0016](0016-a-leaf-means-owning-content.md) | A leaf means owning content | — | — |
 | [0017](0017-human-approval-is-enforced.md) | Human approval is enforced | — | 0012 |
+| [0018](0018-course-index-and-build-course-map.md) | The course index and `build-course-map` | module layer | — |
 
 Open decisions that gate a specific ticket are noted in that ticket's file. The
 two that gate later work: **flip implementation** (0006) and the **diagram-kind
