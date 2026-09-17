@@ -260,9 +260,59 @@ def _source_row(item: dict) -> str:
     return f'<div>{_md_inline(_BULLET.sub("", text))}</div>'
 
 
-def _source_html(items: List[dict], title: str = "Bibliography") -> str:
+def _source_html(items: List[dict], title: str = "Source audit") -> str:
     rows = "".join(_source_row(i) for i in items)
     return f'<h2>{_esc(title)}</h2><div class="source">{rows}</div>'
+
+
+#: rough character budget for one narrative page (the ruled sheet at reference size)
+_NARRATIVE_CHARS = 820
+
+
+def _narrative_pages(items: List[dict]) -> List[List[dict]]:
+    """Chunk the narrative blocks into pages by a measured character budget."""
+    pages: List[List[dict]] = []
+    cur: List[dict] = []
+    used = 0
+    for it in items:
+        cost = len(it.get("text", "")) + 24  # block overhead
+        if cur and used + cost > _NARRATIVE_CHARS:
+            pages.append(cur)
+            cur, used = [], 0
+        cur.append(it)
+        used += cost
+    if cur:
+        pages.append(cur)
+    return pages or [[]]
+
+
+def _narrative_html(items: List[dict]) -> str:
+    """One narrative page: the leaf's content in document order, rendered as
+    content — prose paragraphs, bullet lists, collapsible summaries, mermaid
+    notes. Compacted text when the agent provides it, verbatim otherwise (adr/0007)."""
+    parts: List[str] = []
+    bullets: List[dict] = []
+
+    def flush_bullets() -> None:
+        if bullets:
+            parts.append('<ul class="narrative-list">' + "".join(
+                f"<li>{_md_inline(b['text'])}</li>" for b in bullets
+            ) + "</ul>")
+            bullets.clear()
+
+    for it in items:
+        if it["kind"] == "bullet":
+            bullets.append(it)
+            continue
+        flush_bullets()
+        if it["kind"] == "prose":
+            parts.append(f"<p>{_md_inline(it['text'])}</p>")
+        elif it["kind"] == "details":
+            parts.append(f'<div class="narrative-details">▸ {_md_inline(it["text"])}</div>')
+        elif it["kind"] == "mermaid":
+            parts.append('<div class="narrative-diagram">[diagram]</div>')
+    flush_bullets()
+    return '<div class="narrative">' + "".join(parts) + "</div>"
 
 
 def _pages(node: dict, map_href: str = "") -> List[Tuple[str, str, str]]:
@@ -273,20 +323,30 @@ def _pages(node: dict, map_href: str = "") -> List[Tuple[str, str, str]]:
     spread. Soft content pages keep forward/backward flips mirrored.
     """
     pages: List[Tuple[str, str, str]] = [("hard", "page-cover", _cover_html(node, map_href))]
+    # Narrative first: the source content in document order, rendered as content
+    # (compacted by the agent when available, verbatim otherwise). adr/0007.
+    narrative = node.get("narrative") or node.get("source", [])
+    if narrative:
+        for chunk in _narrative_pages(narrative):
+            pages.append(("soft", "", _narrative_html(chunk)))
+    # Revision spread: recall → self-test → diagrams — the generated aids, appended
+    # after the narrative, never interleaved with the source's chronology.
     if node.get("recall"):
         pages.append(("soft", "", _recall_html(node)))
-    for d in node.get("diagrams", []):
-        if d.get("svg"):
-            pages.append(("soft", "page-diagram", _diagram_html(d)))
     if node.get("prompt") or node.get("reveal"):
         # `page-selftest` names the page whose inner body does the column layout
         pages.append(("soft", "page-selftest", _selftest_html(node)))
-    src = node.get("source", [])
-    if src:
-        chunks = _chunk_source(src)
+    for d in node.get("diagrams", []):
+        if d.get("svg"):
+            pages.append(("soft", "page-diagram", _diagram_html(d)))
+    # Source audit: the raw verbatim, only when the narrative is compacted (so the
+    # reader can check the paraphrase against the original). Without compaction the
+    # narrative already IS the raw, and a second copy would be redundant.
+    if node.get("narrative") and node.get("source"):
+        chunks = _chunk_source(node["source"])
         for i, chunk in enumerate(chunks):
             # the PAGE title only — the stage is still the source audit
-            title = "Bibliography" if i == 0 else f"Bibliography (cont. {i + 1}/{len(chunks)})"
+            title = "Source audit" if i == 0 else f"Source audit (cont. {i + 1}/{len(chunks)})"
             pages.append(("soft", "", _source_html(chunk, title)))
     # A real book ends on a paired spread. StPageFlip's `createSpread()` shows the
     # front cover alone and then pairs from index 1 — (1,2), (3,4), … — so the back

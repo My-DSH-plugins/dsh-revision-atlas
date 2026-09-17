@@ -104,7 +104,10 @@ class TestLeafGenerator(unittest.TestCase):
             if n["title"] == "The uncomfortable fact: models fail systematically, not randomly"
         )
         self.assertGreater(len(node["source"]), 0)
-        self.assertTrue(all(i["kind"] == "bullet" and i["text"] for i in node["source"]))
+        # prose, bullets, collapsibles and mermaid are all enumerated now (adr/0007)
+        kinds = {i["kind"] for i in node["source"]}
+        self.assertIn("bullet", kinds)
+        self.assertTrue(all(i["text"] for i in node["source"]))
 
 
 if __name__ == "__main__":

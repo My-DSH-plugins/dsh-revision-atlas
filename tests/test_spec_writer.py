@@ -120,8 +120,7 @@ class TestStructurePlan(unittest.TestCase):
         leaf = next(
             n for n in _all_nodes(out["root"]) if n["title"] == "1. Hallucination & confabulation"
         )
-        self.assertEqual(leaf["checklist"][0]["kind"], "claim")
-        self.assertEqual(leaf["checklist"][0]["text"], "Fluent false output")
+        self.assertEqual(leaf["narrative"][0]["text"], "Fluent false output")
         self.assertIn("Fluent false output", out["plan_md"])
 
     def test_recall_merge(self):
@@ -183,10 +182,12 @@ class TestStructurePlan(unittest.TestCase):
         nodes = {n["title"]: n for n in _all_nodes(out["root"])}
         for title in ("The failure classes", "Contested boundaries", "M2 · Model Failure Science"):
             self.assertIn("checklist", nodes[title], title)
-        # Intro seed is mechanical-empty (no collapsibles/mermaid in the intro),
-        # but the key exists so the agent can fill it — and children's content is
-        # not double-counted (the closure test asserts that globally).
-        self.assertEqual(nodes["The failure classes"]["checklist"], [])
+        # Intro prose is enumerated too (adr/0007) — a section with intro prose is
+        # no longer mechanical-empty.
+        self.assertTrue(
+            any(i["kind"] == "prose" for i in nodes["The failure classes"]["checklist"]),
+            nodes["The failure classes"]["checklist"],
+        )
 
 
 DUPLICATE_READ_ME = """# Mod
@@ -246,11 +247,11 @@ class TestDuplicateTitles(unittest.TestCase):
         root = self._tree(semantic={vol: ["volume-based baseline"], col: ["per-column baseline"]})
         by_id = {n["id"]: n for n in _all_nodes(root)}
 
-        def claims(leaf_id):
-            return [c["text"] for c in by_id[leaf_id]["checklist"] if c["kind"] == "claim"]
+        def compacted(leaf_id):
+            return [b["text"] for b in by_id[leaf_id].get("narrative", [])]
 
-        self.assertEqual(claims(vol), ["volume-based baseline"])
-        self.assertEqual(claims(col), ["per-column baseline"])
+        self.assertEqual(compacted(vol), ["volume-based baseline"])
+        self.assertEqual(compacted(col), ["per-column baseline"])
 
     def test_a_title_keyed_pass_still_lands_on_both_leaves(self):
         # The fallback for older title-keyed inputs: ambiguous by construction,
@@ -260,9 +261,7 @@ class TestDuplicateTitles(unittest.TestCase):
             n for n in _all_nodes(root) if n["title"] == "Deriving the baseline and thresholds"
         ]
         for leaf in leaves:
-            self.assertEqual(
-                [c["text"] for c in leaf["checklist"] if c["kind"] == "claim"], ["shared"]
-            )
+            self.assertEqual([b["text"] for b in leaf.get("narrative", [])], ["shared"])
 
 
 class TestPlanWriterCLI(unittest.TestCase):

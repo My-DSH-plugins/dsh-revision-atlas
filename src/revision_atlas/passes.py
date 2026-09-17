@@ -29,10 +29,11 @@ from .spec_writer import owns_content
 def passes_from_spec(spec: dict) -> Dict[str, dict]:
     """Rehydrate the three pass-input dicts from a generated spec.
 
-    Each leaf's claims live in its `checklist` as `kind: "claim"`; its recall block
-    in `recall`/`prompt`/`reveal`; its agent-authored diagrams in `mermaid`. The
-    mechanical seeds (details, source mermaid) are deliberately left behind — they
-    are deterministic and will be re-derived, not re-supplied.
+    Each leaf's compacted narrative lives in its `narrative` (one entry per source
+    block, in order); its recall block in `recall`/`prompt`/`reveal`; its
+    agent-authored diagrams in `mermaid`. The mechanical seeds (details, source
+    mermaid) are deliberately left behind — they are deterministic and will be
+    re-derived, not re-supplied.
     """
     semantic: Dict[str, List[str]] = {}
     recall: Dict[str, dict] = {}
@@ -40,9 +41,9 @@ def passes_from_spec(spec: dict) -> Dict[str, dict]:
     for node in iter_leaves(spec["root"]):
         if not owns_content(node):
             continue
-        claims = [c["text"] for c in node.get("checklist", []) if c.get("kind") == "claim"]
-        if claims:
-            semantic[node["id"]] = claims
+        compacted = [b["text"] for b in node.get("narrative", [])]
+        if compacted:
+            semantic[node["id"]] = compacted
         if any(node.get(k) for k in ("recall", "prompt", "reveal")):
             recall[node["id"]] = {
                 "recall": node.get("recall", []),

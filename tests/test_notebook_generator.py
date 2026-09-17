@@ -97,8 +97,12 @@ class TestPages(unittest.TestCase):
         self.assertTrue(all(d == "soft" for d in densities[1:-1]))
         # one page per content block, in order
         html = "".join(inner for _, _, inner in pages)
-        for label in ("Recall", "Diagram", "Self-test", "Bibliography"):
+        for label in ("Recall", "Diagram", "Self-test"):
             self.assertIn(label, html)
+        # the narrative renders the source content as content (adr/0007), not as a
+        # "Bibliography" audit — that only appears once the narrative is compacted
+        self.assertIn("a bullet", html)
+        self.assertIn("Collapsible A", html)
         classes = [c for _, c, _ in pages]
         self.assertEqual(classes[0], "page-cover")    # front cover leads
         self.assertEqual(classes[-1], "page-cover")   # back cover closes
@@ -118,7 +122,7 @@ class TestPages(unittest.TestCase):
         content = pages[1:-1]
         self.assertEqual(len(content) % 2, 1, [c for _, c, _ in pages])
         self.assertEqual(content[0][2], "", "the flyleaf leads the content")
-        self.assertIn("Bibliography", content[-1][2])         # ...and the audit closes it
+        self.assertIn("Diagram", content[-1][2])  # ...and the last aid closes it (no audit without compaction)
         self.assertEqual([d for d, _, _ in content], ["soft"] * len(content))
 
     def test_an_odd_content_leaf_gets_no_flyleaf(self):
@@ -130,6 +134,15 @@ class TestPages(unittest.TestCase):
         self.assertEqual(len(content) % 2, 1)
         self.assertNotEqual(content[0][2], "", "no flyleaf when parity is already right")
 
+    def test_a_compacted_leaf_renders_the_audit_after_the_narrative(self):
+        # adr/0007: a compacted narrative renders first; the raw source audit
+        # renders only then (so a reader can check the paraphrase against it).
+        leaf = _full_leaf()
+        leaf["narrative"] = [{"kind": "prose", "text": "compacted prose"}]
+        html = "".join(inner for _, _, inner in _pages(leaf))
+        self.assertIn("Source audit", html)
+        self.assertLess(html.index("compacted prose"), html.index("Source audit"))
+
 
 class TestRenderNotebook(unittest.TestCase):
     def test_self_contained_flip(self):
@@ -139,7 +152,7 @@ class TestRenderNotebook(unittest.TestCase):
         self.assertIn("St.PageFlip", html)
         self.assertIn("1. Hallucination &amp; confabulation", html)  # escaped title
         self.assertIn("Reveal answer", html)
-        self.assertIn("Bibliography", html)
+        self.assertIn("a bullet", html)          # the narrative content, not an audit
         # notebook geometry: hard covers shown alone and centred, two-page spread
         # between them, and click-anywhere flipping disabled
         self.assertIn("showCover: true", html)

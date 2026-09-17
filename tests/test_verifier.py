@@ -72,8 +72,9 @@ class TestVerifierPasses(unittest.TestCase):
             inv, spec, out = _build(Path(td))
             rep = verify(inv, spec, str(out))
             self.assertTrue(rep.ok(), rep.render())
-            self.assertEqual(rep.stats["checklist_items"], 1)   # the collapsible
-            self.assertEqual(rep.stats["covered"], 1)
+            # prose + bullets + the collapsible are all enumerated now (adr/0007)
+            self.assertGreaterEqual(rep.stats["checklist_items"], 1)
+            self.assertEqual(rep.stats["covered"], rep.stats["checklist_items"])
 
     def test_report_prints_the_section_14_lines(self):
         with tempfile.TemporaryDirectory() as td:
@@ -378,6 +379,22 @@ class TestBuildPipeline(unittest.TestCase):
             self.assertEqual([c["title"] for c in sidecar["children"]], ["Sub A", "Sub B"])
             self.assertIsNotNone(sidecar.get("evidence"), "sidecar lacks its link-line evidence")
 
+    def test_a_prose_only_section_is_a_leaf(self):
+        # adr/0007: prose is enumerated deterministically, so a section whose body
+        # is only prose (no bullets, no collapsibles) is still a leaf — not empty.
+        from revision_atlas.build import build
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "README.md").write_text(
+                "# Mod\n\n## A section\n\nJust prose, no bullets and no collapsibles.\n",
+                encoding="utf-8",
+            )
+            build(str(root), str(root / "mindmaps"), approve=["all"])
+            spec, written, rep = build(str(root), str(root / "mindmaps"))
+            self.assertTrue(rep.ok(), rep.render())
+            self.assertEqual(len(written), 1)  # "A section" owns the prose
+
     def test_build_merges_the_agent_passes(self):
         from revision_atlas.build import build
 
@@ -435,13 +452,19 @@ class TestLeafMeansOwningContent(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            (root / "README.md").write_text(READ_ME, encoding="utf-8")
+            (root / "README.md").write_text(
+                "# Mod\n\nRoot intro prose.\n\n## Section one\n", encoding="utf-8"
+            )
             inv = extract(root)
-            # a semantic pass compacts the root's own range into claims
-            spec = build_structure(inv, semantic={"mod": ["the module's own intro"]})["spec"]
+            # the semantic pass compacts the root's own intro block one-to-one
+            spec = build_structure(inv, semantic={"mod": ["compacted root intro"]})["spec"]
             annotate_artifacts(inv, spec["root"])
             by_id = {n["id"]: n for n in _all_nodes(spec["root"])}
             self.assertTrue(owns_content(by_id["mod"]))
+            self.assertEqual(
+                [b["text"] for b in by_id["mod"].get("narrative", [])],
+                ["compacted root intro"],
+            )
 
 
 def _all_nodes(node):
@@ -480,13 +503,13 @@ class TestArtifactMustHaveContent(unittest.TestCase):
 
 class TestEmptyModule(unittest.TestCase):
     def test_a_module_with_no_leaves_still_produces_an_artifact_tree(self):
-        """No enumerable items and no passes is legal — it must not crash (0016)."""
+        """No content (no prose, no items) is legal — it must not crash (0016)."""
         from revision_atlas.build import build
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "README.md").write_text(
-                "# A module\n\n## A section\n\nProse, and nothing enumerable.\n",
+                "# A module\n\n## A section\n",
                 encoding="utf-8",
             )
             build(str(root), str(root / "mindmaps"), approve=["all"])

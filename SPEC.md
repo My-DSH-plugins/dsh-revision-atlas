@@ -191,16 +191,21 @@ leaf:
 
 ## 8. Leaf generation contract
 
-- **What a leaf is**: a node that *owns content* — a checklist item, a recall
-  block, a self-test or a diagram. A heading owns its intro range even when it has
-  children (that is what stops intro prose being dropped), so having a checklist is
-  NOT the same as being a leaf: a module root whose range is only its own heading is
-  a **parent**, and gets no notebook, no link and no place in the leaf count. One
-  node owning content in exactly one place is the point.
+- **What a leaf is**: a node that *owns content* — a **narrative** (the prose and
+  items of its source range), a recall block, a self-test or a diagram. A heading
+  owns its intro range even when it has children, so a node can carry a narrative
+  and still be a **parent**: a module root whose range is only its own heading is
+  not a leaf and gets no notebook. One node owning content in exactly one place is
+  the point.
+- **The narrative is enumerated deterministically, compacted by the agent**
+  (adr/0007): the extractor enumerates prose paragraphs the way it enumerates
+  bullets/collapsibles/mermaid, so a prose-only section has a machine-checkable
+  checklist item and cannot silently vanish; the agent paraphrases the enumerated
+  prose into the notebook (faithful in meaning and order, never verbatim).
 - **Budgets**: recall block 3–5 bullets ≤60 words; **reveal ≤500 words** — the
   answer, not the chapter, and 500 is the balance between carrying the information
   and having the notebook paginate it across several nested pages; notebook pages by
-  checklist size (§9); a leaf holds a **list of diagrams** — never two drawings of the
+  narrative size (§9); a leaf holds a **list of diagrams** — never two drawings of the
   same structure, but an array when the leaf legitimately has several.
 - **Diagram — mermaid, or none** (see adr/0005, adr/0002):
   - `kind: mermaid` when (a) the source already contains a ` ```mermaid `
@@ -219,17 +224,20 @@ leaf:
   accepted loss — a dense static SVG prints illegibly.
 - **Self-test**: `prompt`/`reveal` authored at generation, stored in `plan.md` so
   they don't churn and can be hand-edited.
-- **Source node**: the collapsed audit bullets live in the map; it is the
-  one-click audit surface for leaf-vs-source.
+- **Source audit**: the raw-verbatim appendix at the back of a notebook — the
+  original bullets/collapsibles/mermaid — the one-click surface for checking the
+  compacted narrative against the source (adr/0007).
 - **Adherence**: generation is verified for more than presence — the critic +
   grounding pass in §6.4 checks that each checklist item is captured faithfully,
   not merely named.
 
 ## 9. Notebook model (replaces single-page notes)
 
-- **Leaf → a notebook of N pages**, not one sheet; page count = f(checklist
-  size), roughly one topic-block per page, one chart per page, one "remember"
-  spread per leaf.
+- **Leaf → a notebook of N pages**, not one sheet, in this order (adr/0007): the
+  **narrative** (the source range's prose + items in document order, compacted),
+  then the **revision spread** (recall → self-test → diagrams), then the **source
+  audit** (raw verbatim, collapsed). Page count = f(narrative size), roughly one
+  topic-block per page, one chart per page, one "remember" spread per leaf.
 - **The reveal is a page inside the page.** The self-test's answer is the one
   block of a leaf that can grow without bound, and a page is a fixed sheet of
   paper — so the answer lives in a nested, finer-ruled sheet with its own pager.
@@ -241,9 +249,9 @@ leaf:
 - **Flip interaction**: touch drag/swipe with hard/soft cover feel; candidate
   StPageFlip (vanilla, offline, mobile); hand-rolled CSS 3D as fallback.
 - **Page titles** are reader-facing, not stage names: the last pages of a leaf
-  render as **Bibliography** and **Bibliography (cont. n/N)**. The stage that
-  produces them is still the source audit — the title is the notebook's register,
-  not the pipeline's.
+  render as **Source audit** and **Source audit (cont. n/N)**. The stage that
+  produces them is the source audit — the title is the notebook's register, not
+  the pipeline's.
 - **Pages are HTML fragments**, not raster images — so they stay crisp at any
   zoom, the verifier can parse them, and size stays small.
 - **Shared assets**: one handwriting font + flip JS + theme per module under

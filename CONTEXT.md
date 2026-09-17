@@ -45,10 +45,11 @@ sidecar reachable from it.
 _Avoid_: source tree, content
 
 **Leaf**:
-A node that *owns content* — a checklist item, a recall block, a self-test or a
-diagram — and therefore gets a notebook. A heading owns its intro range even when
-it has children, so a node can carry a checklist and still be a **parent**: a module
-root whose range is only its own heading is not a leaf.
+A node that *owns content* — a narrative (prose and items in its source range),
+a recall block, a self-test or a diagram — and therefore gets a notebook. A
+heading owns its intro range even when it has children, so a node can carry a
+narrative and still be a **parent**: a module root whose range is only its own
+heading is not a leaf.
 _Avoid_: note, card, section, terminal node
 
 **Leaf id**:
@@ -58,23 +59,37 @@ A function of the heading, never of the leaf's position — an index re-points e
 link below an inserted section.
 _Avoid_: leaf number, index, slug
 
+**Narrative**:
+A leaf's faithful mirror of its source range, in **document order**: prose
+paragraphs, bullets, collapsibles and mermaid, **compacted** (paraphrased — never
+verbatim transcription). The primary content of the notebook.
+_Avoid_: body, transcript, summary
+
+**Revision spread**:
+The generated revision aids of a leaf — recall block, self-test, diagrams —
+rendered as a trailing section **after** the narrative, never interleaved with it.
+_Avoid_: aids section, practice section
+
 **Recall block**:
-A leaf's memory hooks: 3–5 bullets, ≤60 words total.
+A leaf's memory hooks: 3–5 bullets, ≤60 words total. Part of the revision spread.
 _Avoid_: summary, abstract
 
 **Checklist**:
-The enumerated source items a leaf must preserve (sub-headings, collapsible
-blocks, sidecar claims, diagrams). The generator and the verifier both key off it.
-_Avoid_: coverage list, outline
+The machine contract of what a leaf must preserve: the deterministically
+enumerated blocks (prose, bullets, collapsibles, mermaid) plus the agent's
+compacted claims. Coverage, Gate 2 and staleness key off it — it is never a page.
+_Avoid_: coverage list, outline, page
 
-**Source node**:
-The collapsible audit block in a leaf that shows the original bullets, so a
-reader can check the compaction against the source.
-_Avoid_: raw block, dump
+**Source audit**:
+The raw-verbatim appendix at the back of a notebook, listing the original
+bullets/collapsibles/mermaid so a reader can check the compacted narrative against
+the source. Collapsed, not the primary content.
+_Avoid_: raw block, dump, bibliography
 
 **Notebook**:
-A leaf's notes, paginated into several pages with a flip interaction — the
-replacement for a single-page notes file.
+A leaf's paged, flip-interaction surface: the **narrative** (document order),
+then the **revision spread**, then the **source audit**. Page order mirrors the
+source, not the stage.
 _Avoid_: notes page, sheet
 
 **Nested sheet**:

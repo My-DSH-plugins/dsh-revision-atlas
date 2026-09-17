@@ -269,6 +269,17 @@ def _check_coverage(module_dir: Path, leaves: List[dict], rep: Report) -> None:
                         covered += 1
                     else:
                         missed.append("mermaid diagram")
+                elif item["kind"] in ("prose", "bullet"):
+                    total += 1
+                    label = _plain(item.get("text") or "")
+                    needed = _words(label)
+                    found = (
+                        _covers(words, needed) if needed else _covers_literal(visible, label)
+                    )
+                    if found:
+                        covered += 1
+                    else:
+                        missed.append(f"{item['kind']} “{label[:60]}”")
         rep.coverage.append({"leaf": leaf["title"], "missed": missed})
         for m in missed:
             rep.findings.append(Finding(
@@ -298,17 +309,15 @@ def _check_grounding(inv: dict, leaves: List[dict], rep: Report) -> None:
     claims = anchored = 0
     for leaf in leaves:
         src = set(_words(_source_text(inv, leaf)))
-        for item in leaf.get("checklist", []):
-            if item["kind"] != "claim":
-                continue
+        for item in leaf.get("narrative", []):
             claims += 1
-            needed = _words(item["text"])
+            needed = _words(item.get("text", ""))
             if not needed or any(w in src for w in needed):
                 anchored += 1
             else:
                 rep.findings.append(Finding(
                     "needs-review", "grounding", leaf["title"],
-                    "claim shares no subject term with its source — verify it is not invented: "
+                    "compacted narrative shares no subject term with its source — verify it is not invented: "
                     f"“{item['text'][:70]}”",
                 ))
     rep.stats["claims"] = claims

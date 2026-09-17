@@ -112,22 +112,68 @@ def leaf_range(inv: dict, node: dict):
     return start, float("inf")
 
 
-def _checklist_seed(inv: dict, node: dict) -> list:
-    """Grounded checklist items for a leaf: its collapsibles and mermaid blocks.
-
-    This is the deterministic seed; the agent appends semantic items (the key
-    claims) and the human approves the combined checklist at Gate 2.
-    """
-    file = node["file"]
+def _content_blocks(inv: dict, node: dict) -> list:
+    """The leaf's narrative blocks in source order: prose, bullets, collapsibles,
+    mermaid. This is the deterministic enumeration that both the checklist
+    (leaf-ness + coverage) and the source audit render, so a prose-only section has
+    something machine-checkable and cannot silently vanish (adr/0007)."""
     start, end = leaf_range(inv, node)
-    items = []
+    file = node["file"]
+    items: list = []
+    heading_lines = {h["line"] for h in inv["headings"].get(file, [])}
+    path = Path(inv["root"]) / file
+    if path.exists():
+        in_fence = False
+        in_details = False
+        for i, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if not (start <= i < end):
+                continue
+            s = raw.strip()
+            low = s.lower()
+            if s.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            if "<details" in low:
+                in_details = True
+                continue
+            if in_details:
+                if "</details>" in low:
+                    in_details = False
+                continue
+            if not s or i in heading_lines:
+                continue
+            if s.startswith(("- ", "* ", "+ ")):
+                kind, text = "bullet", s[2:].strip()
+            elif s.startswith(">"):
+                kind, text = "prose", s.lstrip("> ").strip()
+            elif s.startswith("|"):
+                kind, text = "prose", s.strip("| ").strip()
+            else:
+                kind, text = "prose", s
+            # Structural noise carries no prose: horizontal rules (`---`, `***`),
+            # table separators (`|---|---|`), and HTML-only lines (`<a id=…>`).
+            plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip()
+            if not plain or re.fullmatch(r"[-|:*_.\s]+", plain):
+                continue
+            items.append({"kind": kind, "line": i, "text": text})
     for d in inv["details_blocks"].get(file, []):
         if start <= d["line"] < end:
-            items.append({"kind": "details", "line": d["line"], "summary": d["summary"]})
+            text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", d["summary"] or "")).strip()
+            items.append({"kind": "details", "line": d["line"], "text": text})
     for mline in inv["mermaid_blocks"].get(file, []):
         if start <= mline < end:
-            items.append({"kind": "mermaid", "line": mline})
+            items.append({"kind": "mermaid", "line": mline, "text": "mermaid diagram"})
+    items.sort(key=lambda it: it["line"])
     return items
+
+
+def _checklist_seed(inv: dict, node: dict) -> list:
+    """Grounded checklist items for a leaf: its narrative blocks (prose, bullets,
+    collapsibles, mermaid). The agent appends the compacted claims, and the human
+    approves the combined checklist at Gate 2."""
+    return _content_blocks(inv, node)
 
 
 def _dedupe_ids(root: dict) -> dict:
@@ -357,8 +403,17 @@ def _annotate_leaves(
     for c in node.get("children", []):
         _annotate_leaves(inv, c, semantic, recall, mermaid)
     if node["kind"] in LEAF_KINDS:
-        claims = [{"kind": "claim", "text": t} for t in (_lookup(semantic, node) or [])]
-        node["checklist"] = claims + _checklist_seed(inv, node)
+        blocks = _checklist_seed(inv, node)          # deterministic verbatim blocks
+        compacted = _lookup(semantic, node) or []    # per-block compacted strings
+        node["checklist"] = blocks                   # the machine contract (verbatim)
+        if compacted:
+            # one-to-one compaction (adr/0007): one narrative entry per block, same
+            # order and kind/line, with the agent's denser text in place of the source
+            node["narrative"] = [
+                {"kind": blocks[i]["kind"], "line": blocks[i].get("line"),
+                 "text": compacted[i]}
+                for i in range(min(len(blocks), len(compacted)))
+            ]
         rc = _lookup(recall, node)
         if rc:
             node["recall"] = rc.get("recall", [])
@@ -425,18 +480,22 @@ def _render_md(root: dict, coverage: dict, state: "Optional[dict]" = None) -> st
                 lines.append(f"{pad}  - {bname}: `{bnode['file']}`")
             if node.get("canonical"):
                 lines.append(f"{pad}  - canonical: `{node['canonical']}`")
+        ipad = pad + "  "
         if node.get("checklist") is not None:
-            ipad = pad + "  "
             if not node["checklist"]:
-                lines.append(f"{ipad}- (checklist: empty — semantic items pending)")
+                lines.append(f"{ipad}- (checklist: empty)")
             for it in node["checklist"]:
-                if it["kind"] == "claim":
-                    lines.append(f"{ipad}- {it['text']}")
-                elif it["kind"] == "details":
-                    label = it["summary"] or f"line {it['line']}"
+                if it["kind"] == "details":
+                    label = it.get("summary") or it.get("text") or f"line {it['line']}"
                     lines.append(f"{ipad}- [details] {label}")
                 elif it["kind"] == "mermaid":
                     lines.append(f"{ipad}- [diagram] mermaid (line {it['line']})")
+                elif it["kind"] in ("prose", "bullet"):
+                    lines.append(f"{ipad}- {it['text']}")
+        if node.get("narrative"):
+            lines.append(f"{ipad}narrative (compacted):")
+            for b in node["narrative"]:
+                lines.append(f"{ipad}  - [{b['kind']}] {b['text']}")
         if node.get("recall") is not None:
             lines.append(f"{ipad}recall:")
             for r in node["recall"]:
